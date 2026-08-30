@@ -95,7 +95,15 @@
 | **FR-N05** | Mark all read | Mark all notifications of current user as read. | All authenticated |
 | **FR-N06** | System notification | Dispatch platform-wide announcement notifications. | Admin |
 
-## 8. Non-functional / Technical Requirements
+## 8. Media & File Storage
+
+| ID | Feature | Description | Roles |
+| :--- | :--- | :--- | :--- |
+| **FR-M01** | Upload Image | Upload and auto-optimize image assets (avatars, course thumbnails) via Cloudinary SDK. | All authenticated / Teacher / Admin |
+| **FR-M02** | Presigned S3 Upload URL | Generate temporary S3 Presigned PUT URLs for direct client upload of lesson videos and downloadable resources to Cloudflare R2. | Teacher(owner), Admin |
+| **FR-M03** | Media validation | Validate file mime-types and size limits on upload and presigned URL generation (e.g. max 5MB for images, max 200MB for lesson videos, max 50MB for resources). | System |
+
+## 9. Non-functional / Technical Requirements
 - Validate all incoming request DTOs using `class-validator` and `ValidationPipe` with whitelist and transform enabled.
 - Wrap all responses in standard envelopes (`{ success: true, data, meta }` for success; `{ success: false, statusCode, message, error, timestamp, path }` for errors).
 - Protect authenticated endpoints with JWT access tokens; verify refresh tokens via secure rotation.
@@ -103,10 +111,11 @@
 - Execute multi-table updates (e.g. quiz grading, course publishing, batch reordering, enrollment creation) inside PostgreSQL transactions using Prisma Interactive Transactions (`prisma.$transaction`).
 - Implement Redis cache for course discovery with explicit TTL and invalidate cache upon course update/archive/publish.
 - Configure RabbitMQ manual ACKs, retry strategy, and Dead-Letter Queue (DLQ) for asynchronous workers.
+- Offload video and large resource file uploads directly to Cloudflare R2 using backend-minted S3 Presigned URLs; offload avatar and thumbnail image processing to Cloudinary CDN.
 - Document every REST endpoint with Swagger annotations and accurate schema models.
 - Implement unit and integration tests per phase (Auth, RBAC, Progress, Quiz, RabbitMQ) before moving to subsequent phases.
 
-## 9. Deployment / Operational Requirements
+## 10. Deployment / Operational Requirements
 - Environment configuration via `.env` files supporting local development, managed cloud, and Oracle Cloud Free VPS.
 - Health-check endpoint (`GET /api/v1/health`) for liveness/readiness probes (PostgreSQL, Redis, RabbitMQ connectivity).
 - Never commit secrets or sensitive credentials into source control.

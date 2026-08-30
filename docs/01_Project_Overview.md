@@ -72,6 +72,8 @@ Online learning platforms need more than simple CRUD. They must organize hierarc
 - Database: PostgreSQL + Prisma ORM v7
 - Cache & Temporary State: Redis
 - Message Broker: RabbitMQ
+- Image Processing & CDN: Cloudinary (User Avatar, Course Thumbnail)
+- Video & File Object Storage: Cloudflare R2 via `@aws-sdk/client-s3` (Lesson Videos, Downloadable Resources)
 - Local Infrastructure: Docker Compose
 - Auth: JWT authentication (Access Token + Refresh Token)
 - *Optional later extensions:* CASL, Google OAuth2, GraphQL, OpenAI, email provider integration.
@@ -79,7 +81,7 @@ Online learning platforms need more than simple CRUD. They must organize hierarc
 ## 7. Out of Scope
 - Real payment, subscription, marketplace, or instructor payout systems.
 - Student self-unenrollment and refund flows (Enrollment status is retained in schema for admin/future use).
-- Live video streaming, video transcoding, DRM, or custom video hosting (Video URLs point to external hosted media).
+- Live video streaming, on-premise video transcoding pipelines, or DRM (Video and document storage uses Cloudflare R2 S3-compatible object storage with direct Presigned URLs; Images use Cloudinary CDN).
 - Real-time chat, forums, social feeds, and live classes.
 - Microservices decomposition of every domain.
 - Multiple primary databases (MongoDB/MySQL intentionally excluded).
@@ -97,14 +99,16 @@ Online learning platforms need more than simple CRUD. They must organize hierarc
 | **ORM** | Prisma ORM v7 | Centralized `schema.prisma`, automated SQL migrations, type-safe client, relations, and transactions. |
 | **Cache / Temporary State** | Redis | Caching discovery data, rate limiting, temporary authentication/session data. |
 | **Message Broker** | RabbitMQ | Asynchronous domain events and background notification processing. |
+| **Image Storage & CDN** | Cloudinary | Auto-optimization, resizing, cropping, and CDN hosting for avatars and thumbnails. |
+| **Video & Object Storage** | Cloudflare R2 | S3-compatible storage with 0$ egress fees for lesson videos and downloadable resources. |
 | **API Documentation** | Swagger / OpenAPI | Interactive API documentation. |
 | **Infrastructure** | Docker Compose | Local PostgreSQL, Redis, RabbitMQ and related services. |
 
 ## 9. High-Level Architecture
-EduHub uses a modular full-stack architecture. Next.js is the presentation layer. NestJS is the single backend application and owns business rules. PostgreSQL is the source of truth for relational data accessed via Prisma ORM. Redis provides fast temporary storage and caching. RabbitMQ decouples asynchronous work such as notification processing from the request-response path.
+EduHub uses a modular full-stack architecture. Next.js is the presentation layer. NestJS is the single backend application and owns business rules. PostgreSQL is the source of truth for relational data accessed via Prisma ORM. Redis provides fast temporary storage and caching. RabbitMQ decouples asynchronous work such as notification processing from the request-response path. Media is managed via a hybrid storage model: Cloudinary for optimized image transformations and Cloudflare R2 for zero-egress video and file object storage via S3-compatible Presigned URLs.
 
 - **Flow:** `Next.js` → `NestJS REST API (Global Interceptor & Filter)` → `PrismaService` → `PostgreSQL`.
-- **Integrations:** NestJS communicates with Redis (cache/rate limit/session) and RabbitMQ (asynchronous events). Workers consume queued events and persist state back through application services.
+- **Integrations:** NestJS communicates with Redis (cache/rate limit/session), RabbitMQ (asynchronous events), Cloudinary (image uploads), and Cloudflare R2 (presigned URL generation for client direct uploads). Workers consume queued events and persist state back through application services.
 
 ## 10. Main User Flows
 

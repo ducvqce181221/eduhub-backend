@@ -72,20 +72,20 @@ Each phase follows a three-part discipline: **Learn**, **Build**, and **Test**. 
 - **Build:** Define `schema.prisma` containing all 15 models and 5 enums (`Role`, `CourseLevel`, `CourseStatus`, `EnrollmentStatus`, `NotificationType`), run migration against PostgreSQL, implement `PrismaModule` & `PrismaService` in NestJS, verify models in Prisma Studio.
 - **Test:** Migration verification tests, entity relation insertion and cascade deletion tests via Prisma Client.
 
-### Phase 3 — Authentication & Identity
-- **Learn:** Password hashing (Argon2 / bcrypt), JWT architecture, access vs refresh token lifecycle, HTTP-only cookie security, Passport strategies.
-- **Build:** Student registration (`POST /auth/register`), login, refresh token rotation, logout, forgot/reset password token flow, profile endpoints (`GET /auth/me`, `PATCH /auth/me`) using `PrismaService`.
-- **Test:** Unit tests for password hashing & JWT generation; integration tests for login validation, expired token rejection, and refresh rotation.
+### Phase 3 — Authentication, Identity & Media Upload
+- **Learn:** Password hashing (Argon2 / bcrypt), JWT architecture, access vs refresh token lifecycle, HTTP-only cookie security, Passport strategies, Cloudinary Node SDK integration.
+- **Build:** Student registration (`POST /auth/register`), login, refresh token rotation, logout, forgot/reset password token flow, profile endpoints (`GET /auth/me`, `PATCH /auth/me`) using `PrismaService`; `UploadModule` with Cloudinary service (`POST /upload/image` for avatar and image assets).
+- **Test:** Unit tests for password hashing & JWT generation; integration tests for login validation, expired token rejection, and refresh rotation; unit tests for Cloudinary upload service.
 
 ### Phase 4 — Authorization (RBAC & Ownership)
 - **Learn:** Role-Based Access Control (RBAC), resource ownership verification, NestJS Custom Guards (`RolesGuard`, `OwnershipGuard`), ExecutionContext reflection.
 - **Build:** Implement `Roles` decorator and guard for `STUDENT`, `TEACHER`, `ADMIN`; build ownership guard verifying `Course.teacherId === req.user.id` via `PrismaService`; protect administrative endpoints.
 - **Test:** Permission matrix integration tests: verify Student cannot edit courses; Teacher A cannot modify Teacher B's course; Admin can access any course.
 
-### Phase 5 — Course Content & Publishing
-- **Learn:** Hierarchical data handling with Prisma nested reads (`include`) / writes (`create`), deterministic slug generation (`nanoid`), batch reordering inside `prisma.$transaction`, sequential order calculation, Publish-Ready Checklist validator pattern, curriculum floor protection.
-- **Build:** Chapter and lesson CRUD (auto-increment sequential `order`); batch reordering endpoints (`PATCH /courses/:id/chapters/reorder`, `PATCH /chapters/:id/lessons/reorder`); video upsert (`PUT /lessons/:id/video`); resource management (`fileSize` as Int); `GET /me/courses` for teachers; Course publish endpoint (`PATCH /courses/:id/publish`) validating $\ge 1$ chapter, $\ge 1$ lesson, and valid video per lesson; archive course endpoint (`PATCH /courses/:id/archive` supporting DRAFT and PUBLISHED courses); delete chapter/lesson floor guard.
-- **Test:** Validation tests for the 5-point Publish Checklist; Category delete rejection test when courses exist (409 Conflict); batch reordering unique index collision tests; published curriculum floor deletion rejection tests (400 Bad Request).
+### Phase 5 — Course Content, Storage & Publishing
+- **Learn:** Hierarchical data handling with Prisma nested reads (`include`) / writes (`create`), deterministic slug generation (`nanoid`), batch reordering inside `prisma.$transaction`, sequential order calculation, Publish-Ready Checklist validator pattern, curriculum floor protection, Cloudflare R2 S3-compatible Presigned URL generation (`@aws-sdk/s3-request-presigner`).
+- **Build:** Chapter and lesson CRUD (auto-increment sequential `order`); batch reordering endpoints (`PATCH /courses/:id/chapters/reorder`, `PATCH /chapters/:id/lessons/reorder`); Cloudflare R2 Presigned URL endpoint (`POST /upload/presigned-url`); video upsert (`PUT /lessons/:id/video`); resource management (`fileSize` as Int); `GET /me/courses` for teachers; Course publish endpoint (`PATCH /courses/:id/publish`) validating $\ge 1$ chapter, $\ge 1$ lesson, and valid video per lesson; archive course endpoint (`PATCH /courses/:id/archive` supporting DRAFT and PUBLISHED courses); delete chapter/lesson floor guard.
+- **Test:** Validation tests for the 5-point Publish Checklist; Presigned S3 URL generation unit test; Category delete rejection test when courses exist (409 Conflict); batch reordering unique index collision tests; published curriculum floor deletion rejection tests (400 Bad Request).
 
 ### Phase 6 — Enrollment & Progress Tracking
 - **Learn:** State machine modeling, incremental heartbeat sync & clamping, automatic completion evaluation, derived progress calculation with single-query SQL aggregation (Anti-N+1), real-time teacher reporting.

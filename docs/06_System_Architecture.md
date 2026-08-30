@@ -11,19 +11,22 @@ EduHub is designed as a clean, modular monolith backend built with NestJS and Ty
 +-------------------------------------------------------------------------+
 |                              Next.js Web UI                             |
 |          (Student Dashboard, Teacher Dashboard, Learning Player)         |
-+------------------------------------+------------------------------------+
-                                     |  HTTP / REST (JWT Bearer)
-                                     v
-+-------------------------------------------------------------------------+
-|                               NestJS API                                |
-|  [Global Exception Filter] <---> [Global Transform Interceptor]         |
-|  [JwtAuthGuard] -> [RolesGuard] -> [Ownership / Enrollment Guard]       |
-|  [ValidationPipe (class-validator)]                                     |
-|  [Modules: Auth, Users, Categories, Courses, Chapters, Lessons, Quizzes] |
-+-----------+------------------------+------------------------+-----------+
-            |                        |                        |
-            | PrismaService          | Redis Client           | amqplib
-            v                        v                        v
++---------------------+-------------------+-------------------------------+
+                      |                   |  Direct S3 Upload (Presigned PUT)
+                      |                   +-------------------------------+
+                      |                                                   |
+                      |  HTTP / REST (JWT Bearer)                         v
+                      v                                        +-------------------+
++------------------------------------------------------------+ |   Cloudflare R2   |
+|                         NestJS API                         | |  (Zero-Egress S3  |
+|  [Global Exception Filter] <---> [Global Transform Interc] | |   Video & Files)  |
+|  [JwtAuthGuard] -> [RolesGuard] -> [Ownership / Guard]     | +-------------------+
+|  [ValidationPipe] | [UploadModule (Cloudinary + AWS S3)]   |
+|  [Modules: Auth, Users, Categories, Courses, Lessons, ...] |
++-----+-----------------------+--------------------+---------+
+      |                       |                    |
+      | PrismaService         | Redis Client       | amqplib
+      v                       v                    v
 +-----------------------+  +-------------------+  +-----------------------+
 |  PostgreSQL Database  |  |    Redis Store    |  |   RabbitMQ Broker     |
 | (Source of Truth, FKs,|  | (Discovery Cache, |  | (Exchange, Queues,    |
@@ -43,13 +46,15 @@ EduHub is designed as a clean, modular monolith backend built with NestJS and Ty
 
 | Component | Technology | Responsibility | Communication |
 | :--- | :--- | :--- | :--- |
-| **Frontend** | Next.js + TypeScript | Client UI, route guards, player heartbeat syncing, student & teacher dashboards. | HTTP/REST to NestJS API |
-| **Backend API** | NestJS + TypeScript | Business logic, authentication, authorization (RBAC + Ownership), validation, transactions. | PrismaService, Redis, RabbitMQ |
+| **Frontend** | Next.js + TypeScript | Client UI, route guards, player heartbeat syncing, student & teacher dashboards, direct file upload. | HTTP/REST to NestJS, PUT to Cloudflare R2 |
+| **Backend API** | NestJS + TypeScript | Business logic, authentication, authorization (RBAC + Ownership), validation, transactions, presigned URL generation. | PrismaService, Redis, RabbitMQ, S3 SDK, Cloudinary |
 | **Database** | PostgreSQL | Relational persistence, constraints, foreign keys, ACID transactions. | PostgreSQL engine |
 | **ORM** | Prisma ORM | Central `schema.prisma`, type-safe client generation, migrations, interactive transactions. | NestJS ↔ PostgreSQL |
 | **Cache & Session** | Redis | Caching published course catalog (`GET /courses`), rate-limiting auth endpoints, token blacklisting. | NestJS ↔ Redis |
 | **Message Broker** | RabbitMQ | Decoupling asynchronous domain events (`course.enrolled`, `quiz.submitted`, `course.completed`). | NestJS Producer ↔ Queues |
 | **Async Consumer** | NestJS Worker | Consumes domain events, persists notification entities in PostgreSQL via `PrismaService`. | RabbitMQ ↔ PostgreSQL |
+| **Image Storage** | Cloudinary | Auto-transforms, crops, compresses, and hosts avatars and course thumbnails via CDN. | NestJS / Frontend ↔ Cloudinary |
+| **Object Storage** | Cloudflare R2 | Zero-egress S3-compatible storage for high-volume lesson video streams and downloadable resources. | Client Direct Upload via Presigned URL |
 | **API Docs** | Swagger / OpenAPI | Interactive API documentation generated from TypeScript decorators. | Served at `/api/docs` |
 | **Infrastructure**| Docker Compose | Local containerized orchestration of PostgreSQL, Redis, and RabbitMQ. | Local environment |
 
@@ -91,7 +96,34 @@ Every incoming HTTP request flows through a unified processing pipeline:
 
 ---
 
-## 6. Synchronous vs Asynchronous Decision Matrix
+---
+
+## 6. Hybrid Media Storage & Direct Upload Architecture
+
+EduHub adopts a **Client-Direct Upload Pattern** for high-volume video/document files to completely decouple file transfer I/O from the NestJS application server:
+
+```
+[ Next.js Client ]                [ NestJS API ]               [ Cloudflare R2 ]
+       |                                |                             |
+       |--- 1. POST /upload/presigned-->|                             |
+       |    { fileName, fileType }      |                             |
+       |                                |-- 2. Mint S3 Presigned PUT->|
+       |<-- 3. Return { uploadUrl, -----|      URL (TTL: 1 hour)      |
+       |               fileUrl }        |                             |
+       |                                                              |
+       |--- 4. Direct HTTP PUT Binary Stream (with progress bar) ---->|
+       |<-- 5. 200 OK (Uploaded successfully) ------------------------|
+       |                                                              |
+       |--- 6. PUT /lessons/:id/video { videoUrl, duration } -------->|
+       |<-- 7. 200 OK (Metadata persisted in PostgreSQL) -------------|
+```
+
+- **Cloudinary (Images):** Client uploads image (Avatar/Thumbnail) via `POST /upload/image`. NestJS streams the buffer to Cloudinary, which returns optimized CDN URLs with auto-crop and WebP conversion.
+- **Cloudflare R2 (Videos & Resources):** S3-compatible, zero-egress object storage. NestJS uses `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` to generate secure PUT URLs. The browser uploads directly to Cloudflare R2, bypassing NestJS server bandwidth.
+
+---
+
+## 7. Synchronous vs Asynchronous Decision Matrix
 
 | Operation | Mode | Rationale |
 | :--- | :--- | :--- |
@@ -103,17 +135,19 @@ Every incoming HTTP request flows through a unified processing pipeline:
 | **Course 100% Completion** | Sync State + Async Event | Progress updated immediately; graduation notification dispatched asynchronously. |
 | **Notification Persistence** | Asynchronous | Handled by RabbitMQ worker to prevent slowing down primary domain transactions. |
 | **Catalog Discovery** | Sync + Redis Read | Cached read optimization for high-traffic discovery endpoints. |
+| **Media Upload (Video/File)**| Direct Upload via Presigned URL | Offloads heavy I/O and large network streams from NestJS compute instances. |
 
 ---
 
-## 7. Resilience & Fault Tolerance
+## 8. Resilience & Fault Tolerance
 - **Redis Outage:** Cache failures are caught gracefully; API automatically falls back to PostgreSQL querying.
 - **RabbitMQ Outage:** Critical database transactions complete successfully; failed message dispatches are logged and buffered.
+- **Storage Outage (R2/Cloudinary):** Upload errors are isolated to the upload endpoint without affecting core authentication or progress state.
 - **PostgreSQL Outage:** API returns clean 500 error with standard error envelope while logging error details for diagnostics.
 
 ---
 
-## 8. Query Optimization & Anti-N+1 Strategy
+## 9. Query Optimization & Anti-N+1 Strategy
 
 To guarantee low latency (< 15ms) and eliminate N+1 query bottlenecks:
 1. **Heartbeat Aggregation (`PUT /lessons/:id/progress`):**

@@ -161,6 +161,13 @@
 | `PATCH`| `/notifications/read-all` | Mark all unread notifications as read | Owner |
 | `POST` | `/notifications/system` | Dispatch system-wide broadcast notification | Admin |
 
+### 2.9 Media & Uploads (Hybrid: Cloudinary + Cloudflare R2)
+
+| Method | Endpoint | Purpose | Auth / Role |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/upload/image` | Upload image (Avatar / Thumbnail) to Cloudinary; returns optimized URLs | JWT Authenticated |
+| `POST` | `/upload/presigned-url` | Mint S3 Presigned PUT URL for client direct upload to Cloudflare R2 (`videos`, `resources`) | Teacher / Admin |
+
 ---
 
 ## 3. Standard HTTP Status Codes
@@ -273,3 +280,28 @@
   ]
 }
 ```
+
+### 4.5 Presigned Upload URL Sample (`POST /upload/presigned-url`)
+
+**Request:**
+```json
+{
+  "fileName": "intro-to-nestjs.mp4",
+  "fileType": "video/mp4",
+  "folder": "videos"
+}
+```
+
+**Response (`201 Created`):**
+```json
+{
+  "success": true,
+  "data": {
+    "uploadUrl": "https://<account-id>.r2.cloudflarestorage.com/eduhub/videos/uuid-intro-to-nestjs.mp4?X-Amz-Algorithm=...",
+    "fileUrl": "https://pub-<hash>.r2.dev/videos/uuid-intro-to-nestjs.mp4",
+    "key": "videos/uuid-intro-to-nestjs.mp4",
+    "expiresIn": 3600
+  }
+}
+```
+

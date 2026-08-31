@@ -52,6 +52,36 @@ export class CourseOwnershipGuard implements CanActivate {
       if (!chapter) throw new NotFoundException("Chapter not found");
       teacherId = chapter.course.teacherId;
       resolvedCourse = chapter.course;
+    } else if (params.lessonId) {
+      const lesson = await this.prisma.lesson.findUnique({
+        where: { id: params.lessonId },
+        select: {
+          id: true,
+          chapter: {
+            select: { course: { select: { id: true, teacherId: true } } },
+          },
+        },
+      });
+      if (!lesson) throw new NotFoundException("Lesson not found");
+      teacherId = lesson.chapter.course.teacherId;
+      resolvedCourse = lesson.chapter.course;
+    } else if (params.quizId) {
+      const quiz = await this.prisma.quiz.findUnique({
+        where: { id: params.quizId },
+        select: {
+          id: true,
+          lesson: {
+            select: {
+              chapter: {
+                select: { course: { select: { id: true, teacherId: true } } },
+              },
+            },
+          },
+        },
+      });
+      if (!quiz) throw new NotFoundException("Quiz not found");
+      teacherId = quiz.lesson.chapter.course.teacherId;
+      resolvedCourse = quiz.lesson.chapter.course;
     } else if (params.id) {
       // Determine entity type based on route path
       if (path.includes("/chapters")) {
@@ -95,6 +125,44 @@ export class CourseOwnershipGuard implements CanActivate {
         if (!resource) throw new NotFoundException("Resource not found");
         teacherId = resource.lesson.chapter.course.teacherId;
         resolvedCourse = resource.lesson.chapter.course;
+      } else if (path.includes("/quizzes")) {
+        const quiz = await this.prisma.quiz.findUnique({
+          where: { id: params.id },
+          select: {
+            id: true,
+            lesson: {
+              select: {
+                chapter: {
+                  select: { course: { select: { id: true, teacherId: true } } },
+                },
+              },
+            },
+          },
+        });
+        if (!quiz) throw new NotFoundException("Quiz not found");
+        teacherId = quiz.lesson.chapter.course.teacherId;
+        resolvedCourse = quiz.lesson.chapter.course;
+      } else if (path.includes("/questions")) {
+        const question = await this.prisma.question.findUnique({
+          where: { id: params.id },
+          select: {
+            id: true,
+            quiz: {
+              select: {
+                lesson: {
+                  select: {
+                    chapter: {
+                      select: { course: { select: { id: true, teacherId: true } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (!question) throw new NotFoundException("Question not found");
+        teacherId = question.quiz.lesson.chapter.course.teacherId;
+        resolvedCourse = question.quiz.lesson.chapter.course;
       } else {
         // Default to course id
         const course = await this.prisma.course.findUnique({

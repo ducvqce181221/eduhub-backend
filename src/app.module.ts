@@ -11,6 +11,7 @@ import { ChaptersModule } from "./chapters/chapters.module";
 import { LessonsModule } from "./lessons/lessons.module";
 import { EnrollmentsModule } from "./enrollments/enrollments.module";
 import { ProgressModule } from "./progress/progress.module";
+import { QuizzesModule } from "./quizzes/quizzes.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ProgressModule } from "./progress/progress.module";
     LessonsModule,
     EnrollmentsModule,
     ProgressModule,
+    QuizzesModule,
   ],
 })
 export class AppModule {}

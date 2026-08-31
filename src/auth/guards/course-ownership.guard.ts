@@ -27,25 +27,94 @@ export class CourseOwnershipGuard implements CanActivate {
       return true;
     }
 
-    const courseId = request.params.courseId || request.params.id;
-    if (!courseId) {
-      return true;
+    const params = request.params || {};
+    const path: string = request.route?.path || request.url || "";
+
+    let teacherId: string | null = null;
+    let resolvedCourse: { id: string; teacherId: string } | null = null;
+
+    if (params.courseId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: params.courseId },
+        select: { id: true, teacherId: true },
+      });
+      if (!course) throw new NotFoundException("Course not found");
+      teacherId = course.teacherId;
+      resolvedCourse = course;
+    } else if (params.chapterId) {
+      const chapter = await this.prisma.chapter.findUnique({
+        where: { id: params.chapterId },
+        select: {
+          id: true,
+          course: { select: { id: true, teacherId: true } },
+        },
+      });
+      if (!chapter) throw new NotFoundException("Chapter not found");
+      teacherId = chapter.course.teacherId;
+      resolvedCourse = chapter.course;
+    } else if (params.id) {
+      // Determine entity type based on route path
+      if (path.includes("/chapters")) {
+        const chapter = await this.prisma.chapter.findUnique({
+          where: { id: params.id },
+          select: {
+            id: true,
+            course: { select: { id: true, teacherId: true } },
+          },
+        });
+        if (!chapter) throw new NotFoundException("Chapter not found");
+        teacherId = chapter.course.teacherId;
+        resolvedCourse = chapter.course;
+      } else if (path.includes("/lessons")) {
+        const lesson = await this.prisma.lesson.findUnique({
+          where: { id: params.id },
+          select: {
+            id: true,
+            chapter: {
+              select: { course: { select: { id: true, teacherId: true } } },
+            },
+          },
+        });
+        if (!lesson) throw new NotFoundException("Lesson not found");
+        teacherId = lesson.chapter.course.teacherId;
+        resolvedCourse = lesson.chapter.course;
+      } else if (path.includes("/resources")) {
+        const resource = await this.prisma.resource.findUnique({
+          where: { id: params.id },
+          select: {
+            id: true,
+            lesson: {
+              select: {
+                chapter: {
+                  select: { course: { select: { id: true, teacherId: true } } },
+                },
+              },
+            },
+          },
+        });
+        if (!resource) throw new NotFoundException("Resource not found");
+        teacherId = resource.lesson.chapter.course.teacherId;
+        resolvedCourse = resource.lesson.chapter.course;
+      } else {
+        // Default to course id
+        const course = await this.prisma.course.findUnique({
+          where: { id: params.id },
+          select: { id: true, teacherId: true },
+        });
+        if (!course) throw new NotFoundException("Course not found");
+        teacherId = course.teacherId;
+        resolvedCourse = course;
+      }
     }
 
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      select: { id: true, teacherId: true },
-    });
-
-    if (!course) {
-      throw new NotFoundException("Course not found");
-    }
-
-    if (course.teacherId !== user.id) {
+    if (teacherId && teacherId !== user.id) {
       throw new ForbiddenException("You do not own this course");
     }
 
-    request.course = course;
+    if (resolvedCourse) {
+      request.course = resolvedCourse;
+    }
+
     return true;
   }
 }

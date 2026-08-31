@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Inject,
   Post,
@@ -18,7 +19,12 @@ import {
 } from "@nestjs/swagger";
 import { CloudinaryService } from "./cloudinary.service";
 import type { UploadableFile } from "./cloudinary.service";
+import { R2StorageService } from "./r2-storage.service";
+import { PresignedUrlDto } from "./dto/presigned-url.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { Role } from "../generated/prisma/client";
 
 @ApiTags("Media & Uploads")
 @Controller("upload")
@@ -26,6 +32,8 @@ export class UploadController {
   constructor(
     @Inject(CloudinaryService)
     private readonly cloudinaryService: CloudinaryService,
+    @Inject(R2StorageService)
+    private readonly r2StorageService: R2StorageService,
   ) {}
 
   @Post("image")
@@ -71,5 +79,37 @@ export class UploadController {
     }
 
     return this.cloudinaryService.uploadImage(file);
+  }
+
+  @Post("presigned-url")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Generate S3 Presigned PUT URL for client direct upload to Cloudflare R2",
+  })
+  @ApiBody({ type: PresignedUrlDto })
+  @ApiResponse({
+    status: 201,
+    description: "Presigned URL minted successfully",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid file type or size limits exceeded",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Teacher/Admin role required",
+  })
+  async generatePresignedUrl(@Body() dto: PresignedUrlDto) {
+    if (!dto) {
+      throw new BadRequestException("Missing request body");
+    }
+    return this.r2StorageService.generatePresignedPutUrl(dto);
   }
 }

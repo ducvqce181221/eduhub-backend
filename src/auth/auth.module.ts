@@ -5,6 +5,7 @@ import { AuthService } from "./auth.service";
 import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { OptionalJwtAuthGuard } from "./guards/optional-jwt-auth.guard";
 import { RolesGuard } from "./guards/roles.guard";
 import { CourseOwnershipGuard } from "./guards/course-ownership.guard";
 
@@ -16,6 +17,7 @@ import { CourseOwnershipGuard } from "./guards/course-ownership.guard";
     PasswordService,
     TokenService,
     JwtAuthGuard,
+    OptionalJwtAuthGuard,
     RolesGuard,
     CourseOwnershipGuard,
   ],
@@ -24,6 +26,7 @@ import { CourseOwnershipGuard } from "./guards/course-ownership.guard";
     PasswordService,
     TokenService,
     JwtAuthGuard,
+    OptionalJwtAuthGuard,
     RolesGuard,
     CourseOwnershipGuard,
     JwtModule,

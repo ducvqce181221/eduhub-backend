@@ -1,4 +1,9 @@
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 
@@ -26,11 +31,28 @@ export class TokenService {
     private readonly configService: ConfigService,
   ) {}
 
+  private getAccessSecret(): string {
+    const secret = this.configService.get<string>("JWT_ACCESS_SECRET");
+    if (!secret) {
+      throw new InternalServerErrorException(
+        "JWT_ACCESS_SECRET is not configured",
+      );
+    }
+    return secret;
+  }
+
+  private getRefreshSecret(): string {
+    const secret = this.configService.get<string>("JWT_REFRESH_SECRET");
+    if (!secret) {
+      throw new InternalServerErrorException(
+        "JWT_REFRESH_SECRET is not configured",
+      );
+    }
+    return secret;
+  }
+
   generateAccessToken(payload: { sub: string; email: string; role: string }): string {
-    const secret = this.configService.get<string>(
-      "JWT_ACCESS_SECRET",
-      "eduhub-access-secret",
-    );
+    const secret = this.getAccessSecret();
     const expiresIn = this.configService.get<string>(
       "JWT_ACCESS_EXPIRES_IN",
       "15m",
@@ -43,10 +65,7 @@ export class TokenService {
   }
 
   generateRefreshToken(payload: { sub: string; email: string; role: string }): string {
-    const secret = this.configService.get<string>(
-      "JWT_REFRESH_SECRET",
-      "eduhub-refresh-secret",
-    );
+    const secret = this.getRefreshSecret();
     const expiresIn = this.configService.get<string>(
       "JWT_REFRESH_EXPIRES_IN",
       "7d",
@@ -59,10 +78,7 @@ export class TokenService {
   }
 
   generatePasswordResetToken(payload: { sub: string; email: string }): string {
-    const secret = this.configService.get<string>(
-      "JWT_ACCESS_SECRET",
-      "eduhub-access-secret",
-    );
+    const secret = this.getAccessSecret();
 
     return this.jwtService.sign(payload, {
       secret,
@@ -72,10 +88,7 @@ export class TokenService {
 
   verifyAccessToken(token: string): JwtPayload {
     try {
-      const secret = this.configService.get<string>(
-        "JWT_ACCESS_SECRET",
-        "eduhub-access-secret",
-      );
+      const secret = this.getAccessSecret();
       return this.jwtService.verify<JwtPayload>(token, { secret });
     } catch {
       throw new UnauthorizedException("Invalid or expired access token");
@@ -84,10 +97,7 @@ export class TokenService {
 
   verifyRefreshToken(token: string): JwtPayload {
     try {
-      const secret = this.configService.get<string>(
-        "JWT_REFRESH_SECRET",
-        "eduhub-refresh-secret",
-      );
+      const secret = this.getRefreshSecret();
       return this.jwtService.verify<JwtPayload>(token, { secret });
     } catch {
       throw new UnauthorizedException("Invalid or expired refresh token");
@@ -96,10 +106,7 @@ export class TokenService {
 
   verifyPasswordResetToken(token: string): ResetPasswordPayload {
     try {
-      const secret = this.configService.get<string>(
-        "JWT_ACCESS_SECRET",
-        "eduhub-access-secret",
-      );
+      const secret = this.getAccessSecret();
       return this.jwtService.verify<ResetPasswordPayload>(token, { secret });
     } catch {
       throw new UnauthorizedException("Invalid or expired password reset token");

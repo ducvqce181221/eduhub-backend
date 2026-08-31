@@ -30,6 +30,7 @@ import { CreateResourceDto } from "./dto/create-resource.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { CourseOwnershipGuard } from "../auth/guards/course-ownership.guard";
+import { EnrollmentGuard } from "../auth/guards/enrollment.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../generated/prisma/client";
 
@@ -80,7 +81,7 @@ export class LessonsController {
   }
 
   @Get("lessons/:id")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, EnrollmentGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -89,6 +90,10 @@ export class LessonsController {
   @ApiParam({ name: "id", type: String, description: "Lesson UUID" })
   @ApiResponse({ status: 200, description: "Lesson details and contents" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Must be enrolled student, course owner, or admin",
+  })
   @ApiResponse({ status: 404, description: "Lesson not found" })
   async findOne(@Param("id") id: string, @Req() req: Request) {
     return this.lessonsService.findOne(id, req.user);

@@ -57,6 +57,13 @@
 }
 ```
 
+### 1.2 DTO & OpenAPI Schema Conventions (Explicit Typing)
+- **Dev Engine Architecture:** The development environment uses `tsx` (`esbuild`) for instant server boot and hot-reload. Because `esbuild` does not run TypeScript AST transformer plugins (such as `@nestjs/swagger/plugin`), all DTOs and Controller methods must provide explicit OpenAPI definitions:
+  - **DTO Properties:** Explicitly declare `type`, `example`, and `description` in `@ApiProperty({ type: String, example: "...", description: "..." })` and `@ApiPropertyOptional({ type: Number, ... })`.
+  - **Controller Methods:** Explicitly annotate mutation endpoints with `@ApiBody({ type: TargetDto })`.
+  - **Defensive Service Validation:** Service layer methods must validate that required DTO payloads are present, converting malformed/missing payloads into standard `400 Bad Request` exceptions.
+  - **Benefits:** Guarantees 100% reliable Swagger UI generation (`/api/docs`), robust type-safe code generation for the frontend (`/api/docs-json`), and rich interactive documentation across all runtimes.
+
 ---
 
 ## 2. Endpoints

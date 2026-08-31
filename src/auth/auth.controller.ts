@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -37,6 +38,7 @@ export class AuthController {
 
   @Post("register")
   @ApiOperation({ summary: "Register a new student account (Public)" })
+  @ApiBody({ type: RegisterDto })
   @ApiResponse({
     status: 201,
     description: "Student registered successfully",
@@ -56,6 +58,7 @@ export class AuthController {
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Login with email & password (Public)" })
+  @ApiBody({ type: LoginDto })
   @ApiResponse({
     status: 200,
     description: "User authenticated; returns access & refresh tokens",
@@ -71,6 +74,7 @@ export class AuthController {
   @Post("refresh")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Issue new access token via refresh token" })
+  @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
     status: 200,
     description: "New tokens issued successfully",
@@ -120,6 +124,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Update personal profile information" })
+  @ApiBody({ type: UpdateProfileDto })
   @ApiResponse({
     status: 200,
     description: "Profile updated successfully",
@@ -144,6 +149,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Change current password" })
+  @ApiBody({ type: ChangePasswordDto })
   @ApiResponse({
     status: 200,
     description: "Password changed successfully",
@@ -166,6 +172,7 @@ export class AuthController {
   @Post("forgot-password")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Request password reset token" })
+  @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({
     status: 200,
     description: "Password reset instructions sent",
@@ -177,6 +184,7 @@ export class AuthController {
   @Post("reset-password")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Set new password using reset token" })
+  @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({
     status: 200,
     description: "Password reset successfully",

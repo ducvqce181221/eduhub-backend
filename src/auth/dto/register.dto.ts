@@ -11,6 +11,7 @@ import { Transform } from "class-transformer";
 
 export class RegisterDto {
   @ApiProperty({
+    type: String,
     example: "student@eduhub.dev",
     description: "User email address (normalized to lowercase)",
   })
@@ -22,6 +23,7 @@ export class RegisterDto {
   email!: string;
 
   @ApiProperty({
+    type: String,
     example: "Password123!",
     description:
       "User password (min 8 chars, at least 1 uppercase, 1 lowercase, 1 number)",
@@ -35,6 +37,7 @@ export class RegisterDto {
   password!: string;
 
   @ApiProperty({
+    type: String,
     example: "John Doe",
     description: "Full name of the user",
   })
@@ -44,6 +47,7 @@ export class RegisterDto {
   fullName!: string;
 
   @ApiPropertyOptional({
+    type: String,
     description: "Role is strictly forced to STUDENT by backend [BR-USR-01]",
   })
   @IsOptional()

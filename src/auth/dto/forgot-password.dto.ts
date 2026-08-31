@@ -4,6 +4,7 @@ import { Transform } from "class-transformer";
 
 export class ForgotPasswordDto {
   @ApiProperty({
+    type: String,
     example: "student@eduhub.dev",
     description: "Registered user email address",
   })

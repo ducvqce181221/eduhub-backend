@@ -3,6 +3,7 @@ import { IsNotEmpty, IsString } from "class-validator";
 
 export class RefreshTokenDto {
   @ApiProperty({
+    type: String,
     example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     description: "Valid JWT refresh token",
   })

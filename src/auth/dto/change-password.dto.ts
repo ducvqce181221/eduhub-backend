@@ -3,6 +3,7 @@ import { IsNotEmpty, IsString, Matches, MinLength } from "class-validator";
 
 export class ChangePasswordDto {
   @ApiProperty({
+    type: String,
     example: "CurrentPassword123!",
     description: "Current user password",
   })
@@ -11,6 +12,7 @@ export class ChangePasswordDto {
   currentPassword!: string;
 
   @ApiProperty({
+    type: String,
     example: "NewPassword123!",
     description:
       "New password (min 8 chars, at least 1 uppercase, 1 lowercase, 1 number)",

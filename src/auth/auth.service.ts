@@ -28,6 +28,12 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    if (!dto || !dto.email || !dto.password || !dto.fullName) {
+      throw new BadRequestException(
+        "Email, password, and fullName are required",
+      );
+    }
+
     const email = dto.email.trim().toLowerCase();
 
     // Check if email already exists [BR-USR-04]
@@ -67,6 +73,10 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    if (!dto || !dto.email || !dto.password) {
+      throw new BadRequestException("Email and password are required");
+    }
+
     const email = dto.email.trim().toLowerCase();
 
     const user = await this.prisma.user.findUnique({
@@ -114,6 +124,10 @@ export class AuthService {
   }
 
   async refresh(dto: RefreshTokenDto) {
+    if (!dto || !dto.refreshToken) {
+      throw new BadRequestException("Refresh token is required");
+    }
+
     const payload = this.tokenService.verifyRefreshToken(dto.refreshToken);
 
     const user = await this.prisma.user.findUnique({
@@ -203,6 +217,12 @@ export class AuthService {
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
+    if (!dto || !dto.currentPassword || !dto.newPassword) {
+      throw new BadRequestException(
+        "Current password and new password are required",
+      );
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -237,6 +257,10 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
+    if (!dto || !dto.email) {
+      throw new BadRequestException("Email is required");
+    }
+
     const email = dto.email.trim().toLowerCase();
 
     const user = await this.prisma.user.findUnique({
@@ -265,6 +289,10 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
+    if (!dto || !dto.token || !dto.newPassword) {
+      throw new BadRequestException("Token and new password are required");
+    }
+
     const payload = this.tokenService.verifyPasswordResetToken(dto.token);
 
     const user = await this.prisma.user.findUnique({

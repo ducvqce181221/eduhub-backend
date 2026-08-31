@@ -3,6 +3,7 @@ import { IsNotEmpty, IsString, Matches, MinLength } from "class-validator";
 
 export class ResetPasswordDto {
   @ApiProperty({
+    type: String,
     example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     description: "Valid password reset token",
   })
@@ -11,6 +12,7 @@ export class ResetPasswordDto {
   token!: string;
 
   @ApiProperty({
+    type: String,
     example: "NewSecurePassword123!",
     description:
       "New password (min 8 chars, at least 1 uppercase, 1 lowercase, 1 number)",

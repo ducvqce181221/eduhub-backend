@@ -4,6 +4,7 @@ import { Transform } from "class-transformer";
 
 export class LoginDto {
   @ApiProperty({
+    type: String,
     example: "student@eduhub.dev",
     description: "User email address",
   })
@@ -15,6 +16,7 @@ export class LoginDto {
   email!: string;
 
   @ApiProperty({
+    type: String,
     example: "Password123!",
     description: "User password",
   })

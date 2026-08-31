@@ -153,7 +153,7 @@ describe("Phase 5 - Part 5: Curriculum Reorder, Floor Protection & Media", () =>
 
   it("should auto-increment lesson order as max + 1 [BR-CRS-05]", async () => {
     const chapter = await prisma.chapter.findFirst({
-      where: { courseId: draftCourseId },
+      where: { courseId: draftCourseId, title: "Chapter 1" },
     });
 
     const l1 = await lessonsService.create(chapter!.id, {
@@ -201,7 +201,7 @@ describe("Phase 5 - Part 5: Curriculum Reorder, Floor Protection & Media", () =>
 
   it("should reorder lessons atomically in transaction without collision [BR-CRS-05]", async () => {
     const chapter = await prisma.chapter.findFirst({
-      where: { courseId: draftCourseId },
+      where: { courseId: draftCourseId, title: "Chapter 1" },
     });
 
     const lessons = await prisma.lesson.findMany({

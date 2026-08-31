@@ -3,8 +3,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { RedisCacheService } from "../common/cache/redis-cache.service";
+import { CACHE_CONSTANTS } from "../common/cache/cache.constants";
 import { CreateChapterDto } from "./dto/create-chapter.dto";
 import { UpdateChapterDto } from "./dto/update-chapter.dto";
 import { ReorderItemDto } from "./dto/reorder-chapters.dto";
@@ -15,7 +18,16 @@ export class ChaptersService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(RedisCacheService)
+    private readonly cacheService?: RedisCacheService,
   ) {}
+
+  private async invalidateCache(): Promise<void> {
+    if (this.cacheService) {
+      await this.cacheService.delByPattern(CACHE_CONSTANTS.COURSES_LIST_PATTERN);
+    }
+  }
 
   async create(courseId: string, dto: CreateChapterDto) {
     const course = await this.prisma.course.findUnique({
@@ -37,7 +49,7 @@ export class ChaptersService {
       targetOrder = (maxChapter?.order ?? 0) + 1;
     }
 
-    return this.prisma.chapter.create({
+    const created = await this.prisma.chapter.create({
       data: {
         title: dto.title.trim(),
         description: dto.description?.trim(),
@@ -45,6 +57,9 @@ export class ChaptersService {
         courseId,
       },
     });
+
+    await this.invalidateCache();
+    return created;
   }
 
   async findOne(id: string) {
@@ -85,10 +100,13 @@ export class ChaptersService {
       updateData.description = dto.description.trim();
     }
 
-    return this.prisma.chapter.update({
+    const updated = await this.prisma.chapter.update({
       where: { id },
       data: updateData,
     });
+
+    await this.invalidateCache();
+    return updated;
   }
 
   async remove(id: string) {
@@ -126,6 +144,7 @@ export class ChaptersService {
       where: { id },
     });
 
+    await this.invalidateCache();
     return { message: "Chapter deleted successfully" };
   }
 
@@ -169,6 +188,7 @@ export class ChaptersService {
       }
     });
 
+    await this.invalidateCache();
     return { message: "Chapters reordered successfully" };
   }
 }

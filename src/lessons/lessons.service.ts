@@ -3,8 +3,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { RedisCacheService } from "../common/cache/redis-cache.service";
+import { CACHE_CONSTANTS } from "../common/cache/cache.constants";
 import { CreateLessonDto } from "./dto/create-lesson.dto";
 import { UpdateLessonDto } from "./dto/update-lesson.dto";
 import { ReorderLessonItemDto } from "./dto/reorder-lessons.dto";
@@ -16,7 +19,16 @@ export class LessonsService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(RedisCacheService)
+    private readonly cacheService?: RedisCacheService,
   ) {}
+
+  private async invalidateCache(): Promise<void> {
+    if (this.cacheService) {
+      await this.cacheService.delByPattern(CACHE_CONSTANTS.COURSES_LIST_PATTERN);
+    }
+  }
 
   async create(chapterId: string, dto: CreateLessonDto) {
     const chapter = await this.prisma.chapter.findUnique({
@@ -58,13 +70,16 @@ export class LessonsService {
       };
     }
 
-    return this.prisma.lesson.create({
+    const created = await this.prisma.lesson.create({
       data: lessonData,
       include: {
         video: true,
         resources: true,
       },
     });
+
+    await this.invalidateCache();
+    return created;
   }
 
   async findOne(id: string, user?: { id: string; role: string }) {
@@ -125,10 +140,13 @@ export class LessonsService {
       updateData.description = dto.description.trim();
     }
 
-    return this.prisma.lesson.update({
+    const updated = await this.prisma.lesson.update({
       where: { id },
       data: updateData,
     });
+
+    await this.invalidateCache();
+    return updated;
   }
 
   async remove(id: string) {
@@ -171,6 +189,7 @@ export class LessonsService {
       where: { id },
     });
 
+    await this.invalidateCache();
     return { message: "Lesson deleted successfully" };
   }
 
@@ -214,6 +233,7 @@ export class LessonsService {
       }
     });
 
+    await this.invalidateCache();
     return { message: "Lessons reordered successfully" };
   }
 
@@ -230,7 +250,7 @@ export class LessonsService {
       throw new BadRequestException("durationSeconds must be greater than 0");
     }
 
-    return this.prisma.video.upsert({
+    const upserted = await this.prisma.video.upsert({
       where: { lessonId },
       create: {
         lessonId,
@@ -244,5 +264,8 @@ export class LessonsService {
         ...(dto.title ? { title: dto.title.trim() } : {}),
       },
     });
+
+    await this.invalidateCache();
+    return upserted;
   }
 }

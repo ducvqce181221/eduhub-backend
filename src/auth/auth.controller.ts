@@ -25,7 +25,9 @@ import { ChangePasswordDto } from "./dto/change-password.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { RateLimitGuard } from "./guards/rate-limit.guard";
 import { CurrentUser } from "./decorators/current-user.decorator";
+import { RateLimit } from "./decorators/rate-limit.decorator";
 import type { AuthenticatedUser } from "./guards/jwt-auth.guard";
 
 @ApiTags("Authentication & Profile")
@@ -37,6 +39,8 @@ export class AuthController {
   ) {}
 
   @Post("register")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(5, 60)
   @ApiOperation({ summary: "Register a new student account (Public)" })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
@@ -57,6 +61,8 @@ export class AuthController {
 
   @Post("login")
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(5, 60)
   @ApiOperation({ summary: "Login with email & password (Public)" })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
@@ -171,6 +177,8 @@ export class AuthController {
 
   @Post("forgot-password")
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(5, 60)
   @ApiOperation({ summary: "Request password reset token" })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({
@@ -183,6 +191,8 @@ export class AuthController {
 
   @Post("reset-password")
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(5, 60)
   @ApiOperation({ summary: "Set new password using reset token" })
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({

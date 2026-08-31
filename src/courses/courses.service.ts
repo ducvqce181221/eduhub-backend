@@ -4,9 +4,13 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from "@nestjs/common";
+import { createHash } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import { RedisCacheService } from "../common/cache/redis-cache.service";
+import { CACHE_CONSTANTS } from "../common/cache/cache.constants";
 import { CreateCourseDto } from "./dto/create-course.dto";
 import { UpdateCourseDto } from "./dto/update-course.dto";
 import { QueryCoursesDto } from "./dto/query-courses.dto";
@@ -19,7 +23,29 @@ export class CoursesService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(RedisCacheService)
+    private readonly cacheService?: RedisCacheService,
   ) {}
+
+  private generateCacheKey(query: QueryCoursesDto): string {
+    const normalized = {
+      page: Number(query.page) || 1,
+      limit: Number(query.limit) || 10,
+      categoryId: query.categoryId || "",
+      level: query.level || "",
+      search: query.search?.trim().toLowerCase() || "",
+      sort: (query as any).sort || "newest",
+    };
+    const hash = createHash("md5").update(JSON.stringify(normalized)).digest("hex");
+    return `${CACHE_CONSTANTS.COURSES_LIST_PREFIX}${hash}`;
+  }
+
+  private async invalidateCache(): Promise<void> {
+    if (this.cacheService) {
+      await this.cacheService.delByPattern(CACHE_CONSTANTS.COURSES_LIST_PATTERN);
+    }
+  }
 
   async create(teacherId: string, dto: CreateCourseDto) {
     if (!dto || !dto.title || !dto.categoryId) {
@@ -41,7 +67,7 @@ export class CoursesService {
 
     const slug = generateCourseSlug(dto.title);
 
-    return this.prisma.course.create({
+    const course = await this.prisma.course.create({
       data: {
         title: dto.title.trim(),
         slug,
@@ -65,9 +91,20 @@ export class CoursesService {
         },
       },
     });
+
+    await this.invalidateCache();
+    return course;
   }
 
   async findAll(query: QueryCoursesDto) {
+    const cacheKey = this.generateCacheKey(query);
+    if (this.cacheService) {
+      const cached = await this.cacheService.get<{ items: any[]; meta: any }>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.max(1, Number(query.limit) || 10);
     const skip = (page - 1) * limit;
@@ -119,7 +156,7 @@ export class CoursesService {
       }),
     ]);
 
-    return {
+    const result = {
       items: courses,
       meta: {
         total,
@@ -128,6 +165,16 @@ export class CoursesService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    if (this.cacheService) {
+      await this.cacheService.set(
+        cacheKey,
+        result,
+        CACHE_CONSTANTS.COURSES_CACHE_TTL_SECONDS,
+      );
+    }
+
+    return result;
   }
 
   async findMyCourses(teacherId: string) {
@@ -234,13 +281,16 @@ export class CoursesService {
       updateData.categoryId = dto.categoryId;
     }
 
-    return this.prisma.course.update({
+    const updated = await this.prisma.course.update({
       where: { id },
       data: updateData,
       include: {
         category: true,
       },
     });
+
+    await this.invalidateCache();
+    return updated;
   }
 
   async publish(id: string) {
@@ -284,7 +334,7 @@ export class CoursesService {
       });
     }
 
-    return this.prisma.course.update({
+    const published = await this.prisma.course.update({
       where: { id },
       data: {
         status: CourseStatus.PUBLISHED,
@@ -294,6 +344,9 @@ export class CoursesService {
         category: true,
       },
     });
+
+    await this.invalidateCache();
+    return published;
   }
 
   async unpublish(id: string) {
@@ -305,12 +358,15 @@ export class CoursesService {
       throw new NotFoundException("Course not found");
     }
 
-    return this.prisma.course.update({
+    const unpublished = await this.prisma.course.update({
       where: { id },
       data: {
         status: CourseStatus.DRAFT,
       },
     });
+
+    await this.invalidateCache();
+    return unpublished;
   }
 
   async archive(id: string) {
@@ -327,11 +383,14 @@ export class CoursesService {
       throw new BadRequestException("Course is already archived");
     }
 
-    return this.prisma.course.update({
+    const archived = await this.prisma.course.update({
       where: { id },
       data: {
         status: CourseStatus.ARCHIVED,
       },
     });
+
+    await this.invalidateCache();
+    return archived;
   }
 }

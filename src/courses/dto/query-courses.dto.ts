@@ -21,7 +21,7 @@ export class QueryCoursesDto {
   @IsInt()
   @Min(1)
   @IsOptional()
-  page: number = 1;
+  page?: number = 1;
 
   @ApiPropertyOptional({
     type: Number,
@@ -33,7 +33,7 @@ export class QueryCoursesDto {
   @IsInt()
   @Min(1)
   @IsOptional()
-  limit: number = 10;
+  limit?: number = 10;
 
   @ApiPropertyOptional({
     type: String,

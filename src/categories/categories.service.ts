@@ -4,8 +4,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { RedisCacheService } from "../common/cache/redis-cache.service";
+import { CACHE_CONSTANTS } from "../common/cache/cache.constants";
 import { CreateCategoryDto } from "./dto/create-category.dto";
 import { UpdateCategoryDto } from "./dto/update-category.dto";
 import { generateCategorySlug } from "../common/utils/slug.util";
@@ -15,7 +18,16 @@ export class CategoriesService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(RedisCacheService)
+    private readonly cacheService?: RedisCacheService,
   ) {}
+
+  private async invalidateCache(): Promise<void> {
+    if (this.cacheService) {
+      await this.cacheService.delByPattern(CACHE_CONSTANTS.COURSES_LIST_PATTERN);
+    }
+  }
 
   async findAll(onlyActive: boolean = true) {
     return this.prisma.category.findMany({
@@ -132,10 +144,13 @@ export class CategoriesService {
       }
     }
 
-    return this.prisma.category.update({
+    const updated = await this.prisma.category.update({
       where: { id },
       data: updateData,
     });
+
+    await this.invalidateCache();
+    return updated;
   }
 
   async remove(id: string) {
@@ -154,6 +169,7 @@ export class CategoriesService {
       where: { id },
     });
 
+    await this.invalidateCache();
     return { message: "Category deleted successfully" };
   }
 }

@@ -5,8 +5,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { EventPublisherService } from "../common/events/event-publisher.service";
+import { EVENTS_CONSTANTS } from "../common/events/events.constants";
 import { EnrollmentStatus, Role } from "../generated/prisma/client";
 import { CreateQuizDto } from "./dto/create-quiz.dto";
 import { UpdateQuizDto } from "./dto/update-quiz.dto";
@@ -19,6 +22,8 @@ export class QuizzesService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Optional()
+    private readonly eventPublisher?: EventPublisherService,
   ) {}
 
   /**
@@ -587,7 +592,9 @@ export class QuizzesService {
     const isPassed = score >= quiz.passScore;
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    let courseCompleted = false;
+
+    const result = await this.prisma.$transaction(async (tx) => {
       // 2. Create QuizAttempt & QuizAttemptAnswers
       const attempt = await tx.quizAttempt.create({
         data: {
@@ -685,6 +692,7 @@ export class QuizzesService {
                 completedAt: now,
               },
             });
+            courseCompleted = true;
           }
         }
       }
@@ -701,6 +709,57 @@ export class QuizzesService {
         submittedAt: attempt.submittedAt,
       };
     });
+
+    // BR-NTF-01: Publish quiz.submitted event asynchronously
+    if (this.eventPublisher) {
+      await this.eventPublisher.publish(
+        EVENTS_CONSTANTS.ROUTING_KEYS.QUIZ_SUBMITTED,
+        {
+          studentId,
+          quizId,
+          lessonId: quiz.lesson.id,
+          score,
+          isPassed,
+          earnedPoints,
+          totalPoints,
+          timestamp: now.toISOString(),
+        },
+      );
+
+      if (courseCompleted) {
+        const course = await this.prisma.course.findUnique({
+          where: { id: courseId },
+          select: { title: true },
+        });
+
+        await this.eventPublisher.publish(
+          EVENTS_CONSTANTS.ROUTING_KEYS.COURSE_COMPLETED,
+          {
+            studentId,
+            courseId,
+            courseTitle: course?.title || "EduHub Course",
+            timestamp: now.toISOString(),
+          },
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Helper / alias for submit attempt
+   */
+  async submitAttempt(
+    arg1: string,
+    arg2: string,
+    dto: SubmitQuizAttemptDto,
+  ) {
+    const quiz = await this.prisma.quiz.findUnique({ where: { id: arg1 } });
+    if (quiz) {
+      return this.submitQuizAttempt(arg2, arg1, dto);
+    }
+    return this.submitQuizAttempt(arg1, arg2, dto);
   }
 
   /**

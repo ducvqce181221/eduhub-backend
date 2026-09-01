@@ -4,8 +4,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { EventPublisherService } from "../common/events/event-publisher.service";
+import { EVENTS_CONSTANTS } from "../common/events/events.constants";
 import {
   CourseStatus,
   EnrollmentStatus,
@@ -17,16 +20,21 @@ export class EnrollmentsService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Optional()
+    private readonly eventPublisher?: EventPublisherService,
   ) {}
 
   /**
-   * Enroll current student in a published course [BR-ENR-01, BR-ENR-02]
+   * Enroll current student in a published course [BR-ENR-01, BR-ENR-02, BR-NTF-01]
    */
   async enroll(
     studentId: string,
-    userRole: Role | string,
-    courseId: string,
+    userRoleOrCourseId: Role | string,
+    maybeCourseId?: string,
   ) {
+    const courseId = maybeCourseId || userRoleOrCourseId;
+    const userRole = maybeCourseId ? userRoleOrCourseId : Role.STUDENT;
+
     if (!studentId || !courseId) {
       throw new BadRequestException("studentId and courseId are required");
     }
@@ -70,7 +78,7 @@ export class EnrollmentsService {
       );
     }
 
-    return this.prisma.enrollment.create({
+    const enrollment = await this.prisma.enrollment.create({
       data: {
         studentId,
         courseId,
@@ -88,6 +96,21 @@ export class EnrollmentsService {
         },
       },
     });
+
+    // BR-NTF-01: Publish course.enrolled event asynchronously
+    if (this.eventPublisher) {
+      await this.eventPublisher.publish(
+        EVENTS_CONSTANTS.ROUTING_KEYS.COURSE_ENROLLED,
+        {
+          studentId,
+          courseId,
+          courseTitle: course.title,
+          timestamp: new Date().toISOString(),
+        },
+      );
+    }
+
+    return enrollment;
   }
 
   /**

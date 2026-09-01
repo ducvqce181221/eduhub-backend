@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisCacheModule } from "./common/cache/redis-cache.module";
+import { EventsModule } from "./common/events/events.module";
 import { HealthModule } from "./health/health.module";
 import { AuthModule } from "./auth/auth.module";
 import { UploadModule } from "./upload/upload.module";
@@ -21,6 +22,7 @@ import { QuizzesModule } from "./quizzes/quizzes.module";
     }),
     PrismaModule,
     RedisCacheModule,
+    EventsModule,
     HealthModule,
     AuthModule,
     UploadModule,

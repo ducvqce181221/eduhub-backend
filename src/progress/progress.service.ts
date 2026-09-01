@@ -4,8 +4,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { EventPublisherService } from "../common/events/event-publisher.service";
+import { EVENTS_CONSTANTS } from "../common/events/events.constants";
 import { EnrollmentStatus, Role } from "../generated/prisma/client";
 import { UpdateLessonProgressDto } from "./dto/update-lesson-progress.dto";
 
@@ -14,6 +17,8 @@ export class ProgressService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Optional()
+    private readonly eventPublisher?: EventPublisherService,
   ) {}
 
   /**
@@ -491,9 +496,39 @@ export class ProgressService {
           completedAt: new Date(),
         },
       });
+
+      // BR-NTF-01: Publish course.completed event asynchronously
+      if (this.eventPublisher) {
+        const course = await this.prisma.course.findUnique({
+          where: { id: courseId },
+          select: { title: true },
+        });
+
+        await this.eventPublisher.publish(
+          EVENTS_CONSTANTS.ROUTING_KEYS.COURSE_COMPLETED,
+          {
+            studentId,
+            courseId,
+            courseTitle: course?.title || "EduHub Course",
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
       return true;
     }
 
     return false;
+  }
+
+  /**
+   * Helper alias for updateLessonProgress
+   */
+  async updateProgress(
+    studentId: string,
+    lessonId: string,
+    dto: UpdateLessonProgressDto,
+  ) {
+    return this.updateLessonProgress(studentId, lessonId, dto);
   }
 }

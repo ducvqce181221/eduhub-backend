@@ -37,7 +37,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `Unhandled Exception on ${request.method} ${request.url}: ${exception.message}`,
         exception.stack,
       );
-      message = exception.message;
+      message = "Internal server error";
     }
 
     const errorResponse = {

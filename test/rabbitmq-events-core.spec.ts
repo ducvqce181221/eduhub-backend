@@ -47,10 +47,16 @@ describe("RabbitMQ Infrastructure & Event Publisher (Phase 9 - Cụm 1: Unit & I
 
     publisherService = moduleRef.get<EventPublisherService>(EventPublisherService);
     await publisherService.onModuleInit();
+
+    // Create a dedicated queue for testing publisher routing without racing with NotificationConsumer
+    await directChannel.assertQueue("eduhub.test.publisher.queue", { durable: false, autoDelete: true });
+    await directChannel.bindQueue("eduhub.test.publisher.queue", EVENTS_CONSTANTS.EVENTS_EXCHANGE, "course.*");
+    await directChannel.bindQueue("eduhub.test.publisher.queue", EVENTS_CONSTANTS.EVENTS_EXCHANGE, "quiz.*");
   });
 
   afterAll(async () => {
     if (directChannel) {
+      await directChannel.deleteQueue("eduhub.test.publisher.queue").catch(() => {});
       await directChannel.close().catch(() => {});
     }
     if (directConnection) {
@@ -63,6 +69,7 @@ describe("RabbitMQ Infrastructure & Event Publisher (Phase 9 - Cụm 1: Unit & I
 
   beforeEach(async () => {
     // Purge test queues before each test case
+    await directChannel.purgeQueue("eduhub.test.publisher.queue").catch(() => {});
     await directChannel.purgeQueue(EVENTS_CONSTANTS.NOTIFICATIONS_QUEUE).catch(() => {});
     await directChannel.purgeQueue(EVENTS_CONSTANTS.DEAD_LETTER_QUEUE).catch(() => {});
   });
@@ -107,7 +114,7 @@ describe("RabbitMQ Infrastructure & Event Publisher (Phase 9 - Cụm 1: Unit & I
       expect(published).toBe(true);
 
       // Verify message received in notifications queue
-      const message = await waitForMessage(EVENTS_CONSTANTS.NOTIFICATIONS_QUEUE);
+      const message = await waitForMessage("eduhub.test.publisher.queue");
       expect(message).not.toBeNull();
       if (message) {
         const received = JSON.parse(message.content.toString());
@@ -135,7 +142,7 @@ describe("RabbitMQ Infrastructure & Event Publisher (Phase 9 - Cụm 1: Unit & I
       );
       expect(published).toBe(true);
 
-      const message = await waitForMessage(EVENTS_CONSTANTS.NOTIFICATIONS_QUEUE);
+      const message = await waitForMessage("eduhub.test.publisher.queue");
       expect(message).not.toBeNull();
       if (message) {
         const received = JSON.parse(message.content.toString());
@@ -158,7 +165,7 @@ describe("RabbitMQ Infrastructure & Event Publisher (Phase 9 - Cụm 1: Unit & I
       );
       expect(published).toBe(true);
 
-      const message = await waitForMessage(EVENTS_CONSTANTS.NOTIFICATIONS_QUEUE);
+      const message = await waitForMessage("eduhub.test.publisher.queue");
       expect(message).not.toBeNull();
       if (message) {
         const received = JSON.parse(message.content.toString());

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,8 +8,11 @@ import {
   Inject,
   Patch,
   Post,
+  Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import type { Request, Response } from "express";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -29,6 +33,15 @@ import { RateLimitGuard } from "./guards/rate-limit.guard";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { RateLimit } from "./decorators/rate-limit.decorator";
 import type { AuthenticatedUser } from "./guards/jwt-auth.guard";
+
+const REFRESH_COOKIE_NAME = "refreshToken";
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/api/v1/auth",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 @ApiTags("Authentication & Profile")
 @Controller("auth")
@@ -67,30 +80,45 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   @ApiResponse({
     status: 200,
-    description: "User authenticated; returns access & refresh tokens",
+    description: "User authenticated; returns access & refresh tokens and sets httpOnly cookie",
   })
   @ApiResponse({
     status: 401,
     description: "Invalid credentials or account disabled",
   })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+    return result;
   }
 
   @Post("refresh")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Issue new access token via refresh token" })
-  @ApiBody({ type: RefreshTokenDto })
+  @ApiOperation({ summary: "Issue new access token via refresh token cookie or body" })
+  @ApiBody({ type: RefreshTokenDto, required: false })
   @ApiResponse({
     status: 200,
-    description: "New tokens issued successfully",
+    description: "New tokens issued successfully and cookie rotated",
   })
   @ApiResponse({
     status: 401,
     description: "Invalid or expired refresh token",
   })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refresh(dto);
+  async refresh(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = req.cookies?.[REFRESH_COOKIE_NAME] || dto?.refreshToken;
+    if (!token) {
+      throw new BadRequestException("Refresh token is required");
+    }
+    const result = await this.authService.refresh({ refreshToken: token });
+    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+    return result;
   }
 
   @Post("logout")
@@ -100,13 +128,19 @@ export class AuthController {
   @ApiOperation({ summary: "Invalidate session / logout" })
   @ApiResponse({
     status: 200,
-    description: "Logged out successfully",
+    description: "Logged out successfully and cookie cleared",
   })
   @ApiResponse({
     status: 401,
     description: "Unauthorized",
   })
-  async logout() {
+  async logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie(REFRESH_COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+      path: "/api/v1/auth",
+    });
     return this.authService.logout();
   }
 

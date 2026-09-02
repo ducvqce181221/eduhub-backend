@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import "dotenv/config";
 
+import cookieParser from "cookie-parser";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -10,6 +11,16 @@ import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Enable CORS with credentials for frontend client
+  const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:3000").trim();
+  app.enableCors({
+    origin: [frontendUrl, "http://localhost:3000", "http://127.0.0.1:3000"],
+    credentials: true,
+  });
+
+  // Cookie parser middleware
+  app.use(cookieParser());
 
   // Global prefix
   app.setGlobalPrefix("api/v1");

@@ -1,3 +1,4 @@
+import cookieParser from "cookie-parser";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
@@ -27,6 +28,7 @@ describe("Phase 3 - Part 2: Registration, Login, Refresh & Logout Flow", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     app.setGlobalPrefix("api/v1");
     app.useGlobalPipes(
       new ValidationPipe({
@@ -126,7 +128,7 @@ describe("Phase 3 - Part 2: Registration, Login, Refresh & Logout Flow", () => {
   // 2. POST /api/v1/auth/login Test Cases
   // -------------------------------------------------------------
   describe("POST /api/v1/auth/login", () => {
-    it("should successfully authenticate with valid credentials and return access + refresh tokens", async () => {
+    it("should successfully authenticate with valid credentials, return accessToken and set httpOnly refreshToken cookie", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
@@ -137,13 +139,22 @@ describe("Phase 3 - Part 2: Registration, Login, Refresh & Logout Flow", () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.accessToken).toBeDefined();
-      expect(res.body.data.refreshToken).toBeDefined();
       expect(res.body.data.user).toMatchObject({
         email: testStudent.email.toLowerCase(),
         fullName: testStudent.fullName,
         role: "STUDENT",
       });
       expect(res.body.data.user.passwordHash).toBeUndefined();
+
+      // Verify Set-Cookie header for refreshToken
+      const cookies = res.headers["set-cookie"];
+      expect(cookies).toBeDefined();
+      const refreshCookie = Array.isArray(cookies)
+        ? cookies.find((c: string) => c.startsWith("refreshToken="))
+        : cookies;
+      expect(refreshCookie).toBeDefined();
+      expect(refreshCookie).toContain("HttpOnly");
+      expect(refreshCookie).toContain("SameSite=Lax");
     });
 
     it("should reject login with 401 Unauthorized when password is incorrect", async () => {
@@ -200,8 +211,38 @@ describe("Phase 3 - Part 2: Registration, Login, Refresh & Logout Flow", () => {
   // 3. POST /api/v1/auth/refresh Test Cases
   // -------------------------------------------------------------
   describe("POST /api/v1/auth/refresh", () => {
-    it("should issue a new access token when given a valid refresh token", async () => {
-      // First login to obtain tokens
+    it("should issue a new access token when given a valid refresh token via httpOnly Cookie", async () => {
+      // First login to obtain cookie
+      const loginRes = await request(app.getHttpServer())
+        .post("/api/v1/auth/login")
+        .send({
+          email: testStudent.email,
+          password: testStudent.password,
+        });
+
+      const cookies = loginRes.headers["set-cookie"];
+      expect(cookies).toBeDefined();
+
+      const refreshRes = await request(app.getHttpServer())
+        .post("/api/v1/auth/refresh")
+        .set("Cookie", cookies)
+        .send();
+
+      expect(refreshRes.status).toBe(200);
+      expect(refreshRes.body.success).toBe(true);
+      expect(refreshRes.body.data.accessToken).toBeDefined();
+
+      // Should also rotate cookie
+      const newCookies = refreshRes.headers["set-cookie"];
+      expect(newCookies).toBeDefined();
+      const newRefreshCookie = Array.isArray(newCookies)
+        ? newCookies.find((c: string) => c.startsWith("refreshToken="))
+        : newCookies;
+      expect(newRefreshCookie).toBeDefined();
+      expect(newRefreshCookie).toContain("HttpOnly");
+    });
+
+    it("should also support refresh token passed in body as fallback", async () => {
       const loginRes = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
@@ -220,7 +261,6 @@ describe("Phase 3 - Part 2: Registration, Login, Refresh & Logout Flow", () => {
       expect(refreshRes.status).toBe(200);
       expect(refreshRes.body.success).toBe(true);
       expect(refreshRes.body.data.accessToken).toBeDefined();
-      expect(refreshRes.body.data.refreshToken).toBeDefined();
     });
 
     it("should reject refresh with 401 Unauthorized when refresh token is invalid or tampered", async () => {
@@ -239,7 +279,7 @@ describe("Phase 3 - Part 2: Registration, Login, Refresh & Logout Flow", () => {
   // 4. POST /api/v1/auth/logout Test Cases
   // -------------------------------------------------------------
   describe("POST /api/v1/auth/logout", () => {
-    it("should successfully logout when authenticated with Bearer token", async () => {
+    it("should successfully logout when authenticated and clear the refreshToken cookie", async () => {
       const loginRes = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
@@ -248,15 +288,25 @@ describe("Phase 3 - Part 2: Registration, Login, Refresh & Logout Flow", () => {
         });
 
       const { accessToken } = loginRes.body.data;
+      const cookies = loginRes.headers["set-cookie"];
 
       const logoutRes = await request(app.getHttpServer())
         .post("/api/v1/auth/logout")
         .set("Authorization", `Bearer ${accessToken}`)
+        .set("Cookie", cookies)
         .send();
 
       expect(logoutRes.status).toBe(200);
       expect(logoutRes.body.success).toBe(true);
       expect(logoutRes.body.data.message).toBeDefined();
+
+      // Verify cookie is cleared (empty value or expired)
+      const logoutCookies = logoutRes.headers["set-cookie"];
+      expect(logoutCookies).toBeDefined();
+      const clearedCookie = Array.isArray(logoutCookies)
+        ? logoutCookies.find((c: string) => c.startsWith("refreshToken="))
+        : logoutCookies;
+      expect(clearedCookie).toMatch(/refreshToken=(;|Expires|Max-Age=0)/i);
     });
 
     it("should reject logout with 401 Unauthorized when unauthenticated", async () => {

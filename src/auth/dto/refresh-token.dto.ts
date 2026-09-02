@@ -1,13 +1,14 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString } from "class-validator";
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { IsOptional, IsString } from "class-validator";
 
 export class RefreshTokenDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: String,
     example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    description: "Valid JWT refresh token",
+    description: "Valid JWT refresh token (optional if sent via httpOnly cookie)",
   })
   @IsString()
-  @IsNotEmpty({ message: "Refresh token is required" })
-  refreshToken!: string;
+  @IsOptional()
+  refreshToken?: string;
 }
+

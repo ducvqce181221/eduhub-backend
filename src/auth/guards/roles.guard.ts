@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   ForbiddenException,
+  Optional,
 } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
@@ -10,9 +11,14 @@ import { ROLES_KEY } from "../decorators/roles.decorator";
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
+    @Optional()
     @Inject(Reflector)
-    private readonly reflector: Reflector,
-  ) {}
+    private reflector: Reflector = new Reflector(),
+  ) {
+    if (!this.reflector) {
+      this.reflector = new Reflector();
+    }
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(

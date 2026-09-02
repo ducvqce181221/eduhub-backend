@@ -1,6 +1,7 @@
 import {
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   Logger,
   Optional,
@@ -18,10 +19,17 @@ export class RateLimitGuard implements CanActivate {
   private readonly logger = new Logger(RateLimitGuard.name);
 
   constructor(
-    private readonly reflector: Reflector,
     @Optional()
+    @Inject(Reflector)
+    private reflector: Reflector = new Reflector(),
+    @Optional()
+    @Inject(RedisCacheService)
     private readonly redisCacheService?: RedisCacheService,
-  ) {}
+  ) {
+    if (!this.reflector) {
+      this.reflector = new Reflector();
+    }
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const options = this.reflector.getAllAndOverride<RateLimitOptions>(

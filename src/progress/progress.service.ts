@@ -447,6 +447,7 @@ export class ProgressService {
       courseId,
       totalLessons,
       totalEnrolled,
+      totalEnrollments: totalEnrolled,
       completedCount,
       averageProgressPercentage,
     };

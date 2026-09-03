@@ -1,292 +1,95 @@
 import { createPrismaClient } from "../src/lib/prisma";
 import bcrypt from "bcryptjs";
+import { cleanDatabase } from "./seeds/clean.seed";
+import { seedUsers } from "./seeds/users.seed";
+import { seedCategories } from "./seeds/categories.seed";
+import { seedCourses } from "./seeds/courses.seed";
+import { seedEnrollmentsAndProgress } from "./seeds/enrollments.seed";
+import { seedNotifications } from "./seeds/notifications.seed";
 
 const prisma = createPrismaClient();
 
 async function main() {
-  console.log("🌱 Starting database seeding...");
+  console.log("🌱 ===================================================");
+  console.log("🌱 Starting EduHub Full Database Seeding...");
+  console.log("🌱 ===================================================");
 
-  // Password hash for all seeded accounts
+  const startTime = Date.now();
+
+  // 1. Clean previous database state
+  await cleanDatabase(prisma);
+
+  // 2. Hash default password for all seeded accounts (conforms to BR-USR-05)
   const passwordHash = bcrypt.hashSync("Password123!", 10);
 
-  // 1. Seed Users
-  console.log("Seeding users...");
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@eduhub.dev" },
-    update: {},
-    create: {
-      email: "admin@eduhub.dev",
-      passwordHash,
-      fullName: "System Admin",
-      role: "ADMIN",
-      isActive: true,
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=admin",
-    },
-  });
+  // 3. Seed Users
+  const users = await seedUsers(prisma, passwordHash);
 
-  const teacher1 = await prisma.user.upsert({
-    where: { email: "teacher1@eduhub.dev" },
-    update: {},
-    create: {
-      email: "teacher1@eduhub.dev",
-      passwordHash,
-      fullName: "John Doe",
-      role: "TEACHER",
-      isActive: true,
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=john",
-    },
-  });
+  // 4. Seed Categories
+  const categories = await seedCategories(prisma);
 
-  const teacher2 = await prisma.user.upsert({
-    where: { email: "teacher2@eduhub.dev" },
-    update: {},
-    create: {
-      email: "teacher2@eduhub.dev",
-      passwordHash,
-      fullName: "Jane Smith",
-      role: "TEACHER",
-      isActive: true,
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=jane",
-    },
-  });
+  // 5. Seed Courses & Curriculum (Chapters, Lessons, Videos, Resources, Quizzes)
+  const courses = await seedCourses(prisma, users, categories);
 
-  const student1 = await prisma.user.upsert({
-    where: { email: "student1@eduhub.dev" },
-    update: {},
-    create: {
-      email: "student1@eduhub.dev",
-      passwordHash,
-      fullName: "Alice Learner",
-      role: "STUDENT",
-      isActive: true,
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=alice",
-    },
-  });
+  // 6. Seed Enrollments, Learning Progress, and Quiz Attempts
+  await seedEnrollmentsAndProgress(prisma, users, courses);
 
-  const student2 = await prisma.user.upsert({
-    where: { email: "student2@eduhub.dev" },
-    update: {},
-    create: {
-      email: "student2@eduhub.dev",
-      passwordHash,
-      fullName: "Bob Scholar",
-      role: "STUDENT",
-      isActive: true,
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=bob",
-    },
-  });
+  // 7. Seed Notifications
+  await seedNotifications(prisma, users, courses);
 
-  console.log(`✓ Seeded users: admin, teacher1, teacher2, student1, student2`);
+  // Summary counts
+  const [
+    userCount,
+    categoryCount,
+    courseCount,
+    chapterCount,
+    lessonCount,
+    videoCount,
+    resourceCount,
+    quizCount,
+    questionCount,
+    answerCount,
+    enrollmentCount,
+    progressCount,
+    attemptCount,
+    notificationCount,
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.category.count(),
+    prisma.course.count(),
+    prisma.chapter.count(),
+    prisma.lesson.count(),
+    prisma.video.count(),
+    prisma.resource.count(),
+    prisma.quiz.count(),
+    prisma.question.count(),
+    prisma.answer.count(),
+    prisma.enrollment.count(),
+    prisma.lessonProgress.count(),
+    prisma.quizAttempt.count(),
+    prisma.notification.count(),
+  ]);
 
-  // 2. Seed Categories
-  console.log("Seeding categories...");
-  const catWeb = await prisma.category.upsert({
-    where: { slug: "web-development" },
-    update: {},
-    create: {
-      name: "Web Development",
-      slug: "web-development",
-      description: "Frontend and backend web technologies (React, Next.js, NestJS, Node.js)",
-      isActive: true,
-    },
-  });
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
 
-  const catMobile = await prisma.category.upsert({
-    where: { slug: "mobile-development" },
-    update: {},
-    create: {
-      name: "Mobile Development",
-      slug: "mobile-development",
-      description: "Cross-platform and native mobile apps (Flutter, React Native, iOS, Android)",
-      isActive: true,
-    },
-  });
-
-  const catAI = await prisma.category.upsert({
-    where: { slug: "data-science-ai" },
-    update: {},
-    create: {
-      name: "Data Science & AI",
-      slug: "data-science-ai",
-      description: "Machine Learning, Deep Learning, AI Engineering, and Python",
-      isActive: true,
-    },
-  });
-
-  const catDevOps = await prisma.category.upsert({
-    where: { slug: "devops-cloud" },
-    update: {},
-    create: {
-      name: "DevOps & Cloud",
-      slug: "devops-cloud",
-      description: "Docker, Kubernetes, AWS, CI/CD, Infrastructure as Code",
-      isActive: true,
-    },
-  });
-
-  console.log(`✓ Seeded categories: Web Dev, Mobile Dev, AI, DevOps`);
-
-  // 3. Seed Courses
-  console.log("Seeding courses and curriculum...");
-  const publishedCourse = await prisma.course.upsert({
-    where: { slug: "fullstack-nestjs-nextjs-masterclass-k9x1z2" },
-    update: {},
-    create: {
-      title: "Fullstack NestJS & Next.js Masterclass",
-      slug: "fullstack-nestjs-nextjs-masterclass-k9x1z2",
-      description: "Learn to build production-ready fullstack web applications with NestJS, PostgreSQL, Prisma, Redis, RabbitMQ, and Next.js.",
-      thumbnailUrl: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97",
-      level: "INTERMEDIATE",
-      status: "PUBLISHED",
-      publishedAt: new Date(),
-      categoryId: catWeb.id,
-      teacherId: teacher1.id,
-      chapters: {
-        create: [
-          {
-            title: "Chapter 1: NestJS Architecture & Essentials",
-            description: "Understanding modular monolith architecture, Dependency Injection, and Prisma ORM.",
-            order: 1,
-            lessons: {
-              create: [
-                {
-                  title: "Lesson 1: Introduction to NestJS & Architecture",
-                  description: "Overview of Controllers, Providers, Modules, and NestJS execution lifecycle.",
-                  order: 1,
-                  video: {
-                    create: {
-                      title: "Intro to NestJS",
-                      videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-                      durationSeconds: 600,
-                    },
-                  },
-                  resources: {
-                    create: [
-                      {
-                        name: "Architecture Diagram.pdf",
-                        fileUrl: "https://example.com/eduhub-arch.pdf",
-                        fileType: "pdf",
-                        fileSize: 204800,
-                      },
-                    ],
-                  },
-                  quiz: {
-                    create: {
-                      title: "NestJS Fundamentals Quiz",
-                      description: "Test your understanding of NestJS modules and providers.",
-                      passScore: 80,
-                      questions: {
-                        create: [
-                          {
-                            content: "What is the primary architectural design pattern utilized by NestJS?",
-                            order: 1,
-                            points: 1,
-                            answers: {
-                              create: [
-                                { content: "Dependency Injection & Inversion of Control", isCorrect: true },
-                                { content: "Procedural Scripting", isCorrect: false },
-                                { content: "Microkernel without modules", isCorrect: false },
-                              ],
-                            },
-                          },
-                          {
-                            content: "Which decorator is used to register a class as an injectable provider in NestJS?",
-                            order: 2,
-                            points: 1,
-                            answers: {
-                              create: [
-                                { content: "@Injectable()", isCorrect: true },
-                                { content: "@Provider()", isCorrect: false },
-                                { content: "@Service()", isCorrect: false },
-                              ],
-                            },
-                          },
-                        ],
-                      },
-                    },
-                  },
-                },
-                {
-                  title: "Lesson 2: Prisma ORM v7 & Database Persistence",
-                  description: "Working with schema modeling, driver adapters, and PostgreSQL.",
-                  order: 2,
-                  video: {
-                    create: {
-                      title: "Prisma ORM Setup",
-                      videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-                      durationSeconds: 480,
-                    },
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  const draftCourse = await prisma.course.upsert({
-    where: { slug: "docker-kubernetes-for-developers-p3n8w1" },
-    update: {},
-    create: {
-      title: "Docker & Kubernetes for Developers",
-      slug: "docker-kubernetes-for-developers-p3n8w1",
-      description: "Master containerization, Docker Compose, and Kubernetes orchestration.",
-      thumbnailUrl: "https://images.unsplash.com/photo-1605745341112-85968b19335b",
-      level: "BEGINNER",
-      status: "DRAFT",
-      categoryId: catDevOps.id,
-      teacherId: teacher2.id,
-      chapters: {
-        create: [
-          {
-            title: "Chapter 1: Getting Started with Docker",
-            description: "Containers vs Virtual Machines, Dockerfile basics.",
-            order: 1,
-            lessons: {
-              create: [
-                {
-                  title: "Lesson 1: What is a Container?",
-                  description: "Understanding image layers and container runtimes.",
-                  order: 1,
-                  video: {
-                    create: {
-                      title: "Container Basics",
-                      videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-                      durationSeconds: 360,
-                    },
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  console.log(`✓ Seeded course (Published): ${publishedCourse.title}`);
-  console.log(`✓ Seeded course (Draft): ${draftCourse.title}`);
-
-  // 4. Seed Sample Enrollment for student1
-  await prisma.enrollment.upsert({
-    where: {
-      studentId_courseId: {
-        studentId: student1.id,
-        courseId: publishedCourse.id,
-      },
-    },
-    update: {},
-    create: {
-      studentId: student1.id,
-      courseId: publishedCourse.id,
-      status: "ACTIVE",
-    },
-  });
-
-  console.log(`✓ Seeded enrollment for ${student1.email} in ${publishedCourse.title}`);
-  console.log("🎉 Seeding completed successfully!");
+  console.log("===================================================");
+  console.log(`🎉 Database Seeding Completed in ${elapsed}s!`);
+  console.log("📊 Summary of Seeded Entities:");
+  console.log(`   - Users:              ${userCount} (1 Admin, 3 Teachers, 5 Students, 1 Deactivated)`);
+  console.log(`   - Categories:         ${categoryCount} (4 Active with courses, 1 Empty deletable, 1 Inactive)`);
+  console.log(`   - Courses:            ${courseCount} (4 Published, 1 Draft invalid, 1 Draft ready, 1 Archived)`);
+  console.log(`   - Chapters:           ${chapterCount}`);
+  console.log(`   - Lessons:            ${lessonCount}`);
+  console.log(`   - Videos:             ${videoCount}`);
+  console.log(`   - Resources:          ${resourceCount}`);
+  console.log(`   - Quizzes:            ${quizCount}`);
+  console.log(`   - Questions:          ${questionCount}`);
+  console.log(`   - Answers:            ${answerCount}`);
+  console.log(`   - Enrollments:        ${enrollmentCount}`);
+  console.log(`   - Lesson Progress:    ${progressCount}`);
+  console.log(`   - Quiz Attempts:      ${attemptCount}`);
+  console.log(`   - Notifications:      ${notificationCount}`);
+  console.log("===================================================");
 }
 
 main()

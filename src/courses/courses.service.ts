@@ -194,8 +194,13 @@ export class CoursesService {
   }
 
   async findOne(id: string, user?: { id: string; role: Role }) {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      );
+
     const course = await this.prisma.course.findUnique({
-      where: { id },
+      where: isUuid ? { id } : { slug: id },
       include: {
         category: true,
         teacher: {

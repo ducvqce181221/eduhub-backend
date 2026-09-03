@@ -22,8 +22,8 @@ export class UsersService {
   ) {}
 
   async findAll(query: QueryUsersDto) {
-    const page = query.page && query.page > 0 ? query.page : 1;
-    const limit = query.limit && query.limit > 0 ? query.limit : 10;
+    const page = Math.max(1, query?.page ? Number(query.page) : 1);
+    const limit = Math.min(100, Math.max(1, query?.limit ? Number(query.limit) : 10));
     const skip = (page - 1) * limit;
 
     const where: Record<string, any> = {};
@@ -33,7 +33,10 @@ export class UsersService {
     }
 
     if (query.isActive !== undefined) {
-      where.isActive = query.isActive;
+      where.isActive =
+        typeof query.isActive === "string"
+          ? query.isActive === "true"
+          : Boolean(query.isActive);
     }
 
     if (query.search) {

@@ -212,4 +212,26 @@ describe("Phase 5 - Part 3: Course Management & Lifecycle Transitions", () => {
     const reverted = await coursesService.unpublish(course.id);
     expect(reverted.status).toBe(CourseStatus.DRAFT);
   });
+
+  it("should retrieve a course by UUID or by slug in findOne", async () => {
+    const course = await prisma.course.create({
+      data: {
+        title: "Slug Query Test Course",
+        slug: `slug-query-test-${timestamp}`,
+        categoryId: activeCategoryId,
+        teacherId: teacherAId,
+        status: CourseStatus.PUBLISHED,
+        publishedAt: new Date(),
+      },
+    });
+
+    // Lookup by UUID
+    const byId = await coursesService.findOne(course.id);
+    expect(byId.id).toBe(course.id);
+
+    // Lookup by Slug
+    const bySlug = await coursesService.findOne(`slug-query-test-${timestamp}`);
+    expect(bySlug.id).toBe(course.id);
+    expect(bySlug.slug).toBe(`slug-query-test-${timestamp}`);
+  });
 });

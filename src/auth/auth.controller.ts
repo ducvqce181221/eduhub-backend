@@ -6,12 +6,14 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Optional,
   Patch,
   Post,
   Req,
   Res,
   UseGuards,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 import {
   ApiBearerAuth,
@@ -30,6 +32,8 @@ import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RateLimitGuard } from "./guards/rate-limit.guard";
+import { GoogleAuthGuard } from "./guards/google-auth.guard";
+import { GoogleAuthDto } from "./dto/google-auth.dto";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { RateLimit } from "./decorators/rate-limit.decorator";
 import type { AuthenticatedUser } from "./guards/jwt-auth.guard";
@@ -49,6 +53,9 @@ export class AuthController {
   constructor(
     @Inject(AuthService)
     private readonly authService: AuthService,
+    @Optional()
+    @Inject(ConfigService)
+    private readonly configService?: ConfigService,
   ) {}
 
   @Post("register")
@@ -91,6 +98,94 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.login(dto);
+    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+    return result;
+  }
+
+  @Get("google")
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: "Initiate Google OAuth2 authentication (Public)" })
+  @ApiResponse({
+    status: 302,
+    description: "Redirects to Google Accounts for consent",
+  })
+  async googleAuth() {
+    // Handled automatically by Passport Google strategy
+  }
+
+  @Get("google/callback")
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: "Google OAuth2 callback URL (Public)" })
+  @ApiResponse({
+    status: 302,
+    description: "Google authenticated; redirects to frontend auth callback",
+  })
+  async googleAuthCallback(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const profile = (req as any).user;
+    const result = await this.authService.validateGoogleUser(profile);
+    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+
+    const frontendUrl =
+      this.configService?.get<string>("FRONTEND_URL") ||
+      process.env.FRONTEND_URL ||
+      "http://localhost:3000";
+
+    const state = (req.query?.state as string) || "";
+    let returnUrl = "/courses";
+    if (state) {
+      try {
+        const parsed = JSON.parse(
+          Buffer.from(state, "base64").toString("utf-8"),
+        );
+        if (parsed?.returnUrl) {
+          returnUrl = parsed.returnUrl;
+        }
+      } catch {
+        // default to /courses
+      }
+    }
+
+    if (typeof (res as any).redirect === "function") {
+      (res as any).redirect(
+        `${frontendUrl}/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`,
+      );
+      return;
+    }
+
+    return result;
+  }
+
+  @Post("google")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Authenticate via Google ID token or credentials (Public)",
+  })
+  @ApiBody({ type: GoogleAuthDto })
+  @ApiResponse({
+    status: 200,
+    description: "Google authenticated; returns JWT pair & sets httpOnly cookie",
+  })
+  async googleTokenAuth(
+    @Body() dto: GoogleAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!dto.googleId && !dto.credential && !dto.email) {
+      throw new BadRequestException(
+        "Google credential, googleId, or email is required",
+      );
+    }
+
+    const profile = {
+      id: dto.googleId || dto.credential || "",
+      emails: dto.email ? [{ value: dto.email }] : [],
+      displayName: dto.fullName || "",
+      photos: dto.avatarUrl ? [{ value: dto.avatarUrl }] : [],
+    };
+
+    const result = await this.authService.validateGoogleUser(profile);
     res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
     return result;
   }

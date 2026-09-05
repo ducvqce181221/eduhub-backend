@@ -92,6 +92,12 @@ export class AuthService {
       throw new UnauthorizedException("Account has been disabled");
     }
 
+    if (!user.passwordHash) {
+      throw new UnauthorizedException(
+        "This account was registered via Google OAuth. Please sign in with Google.",
+      );
+    }
+
     const isPasswordValid = await this.passwordService.comparePassword(
       dto.password,
       user.passwordHash,
@@ -118,8 +124,111 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        isActive: user.isActive,
         avatarUrl: user.avatarUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       },
+    };
+  }
+
+  async validateGoogleUser(profile: {
+    id: string;
+    emails?: Array<{ value: string }>;
+    displayName?: string;
+    photos?: Array<{ value: string }>;
+  }) {
+    if (!profile || !profile.id) {
+      throw new BadRequestException("Google profile ID is required");
+    }
+
+    const email = profile.emails?.[0]?.value?.trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException(
+        "Google account must have an associated email",
+      );
+    }
+
+    // 1. Check if user with this googleId already exists
+    let user = await this.prisma.user.findUnique({
+      where: { googleId: profile.id },
+    });
+
+    if (user) {
+      if (!user.isActive) {
+        throw new UnauthorizedException("Account has been disabled");
+      }
+      const payload = {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+      };
+      const accessToken = this.tokenService.generateAccessToken(payload);
+      const refreshToken = this.tokenService.generateRefreshToken(payload);
+      return {
+        user,
+        accessToken,
+        refreshToken,
+      };
+    }
+
+    // 2. Check if user with this email already exists
+    user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (user) {
+      if (!user.isActive) {
+        throw new UnauthorizedException("Account has been disabled");
+      }
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId: profile.id,
+          avatarUrl: user.avatarUrl ?? profile.photos?.[0]?.value ?? null,
+        },
+      });
+      const payload = {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+      };
+      const accessToken = this.tokenService.generateAccessToken(payload);
+      const refreshToken = this.tokenService.generateRefreshToken(payload);
+      return {
+        user,
+        accessToken,
+        refreshToken,
+      };
+    }
+
+    // 3. First time signing in: Provision new student account [BR-USR-01, BR-USR-04]
+    const fullName = profile.displayName?.trim() || email.split("@")[0];
+    const avatarUrl = profile.photos?.[0]?.value || null;
+
+    user = await this.prisma.user.create({
+      data: {
+        email,
+        googleId: profile.id,
+        fullName,
+        role: "STUDENT",
+        isActive: true,
+        passwordHash: null,
+        avatarUrl,
+      },
+    });
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+    const accessToken = this.tokenService.generateAccessToken(payload);
+    const refreshToken = this.tokenService.generateRefreshToken(payload);
+    return {
+      user,
+      accessToken,
+      refreshToken,
     };
   }
 
@@ -229,6 +338,12 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException("User not found");
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        "Account was created via Google OAuth. Please set a password first using reset password.",
+      );
     }
 
     const isCurrentPasswordValid = await this.passwordService.comparePassword(

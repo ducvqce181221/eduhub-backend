@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -12,6 +13,7 @@ import { CreateLessonDto } from "./dto/create-lesson.dto";
 import { UpdateLessonDto } from "./dto/update-lesson.dto";
 import { ReorderLessonItemDto } from "./dto/reorder-lessons.dto";
 import { UpsertVideoDto } from "./dto/upsert-video.dto";
+import { AttachVideoFromLibraryDto } from "./dto/attach-from-library.dto";
 import { CourseStatus, Role } from "../generated/prisma/client";
 
 @Injectable()
@@ -240,6 +242,13 @@ export class LessonsService {
   async upsertVideo(lessonId: string, dto: UpsertVideoDto) {
     const lesson = await this.prisma.lesson.findUnique({
       where: { id: lessonId },
+      include: {
+        chapter: {
+          include: {
+            course: true,
+          },
+        },
+      },
     });
 
     if (!lesson) {
@@ -250,18 +259,99 @@ export class LessonsService {
       throw new BadRequestException("durationSeconds must be greater than 0");
     }
 
+    const teacherId = lesson.chapter.course.teacherId;
+    let assetId = dto.assetId;
+    const title = dto.title?.trim() || `${lesson.title} - Video`;
+
+    // Automatically register upload into teacher's MediaAsset library if not already linked
+    if (!assetId) {
+      const asset = await this.prisma.mediaAsset.create({
+        data: {
+          uploaderId: teacherId,
+          name: title,
+          fileUrl: dto.videoUrl.trim(),
+          fileType: "video/mp4",
+          durationSeconds: dto.durationSeconds,
+          contentHash: dto.contentHash?.toLowerCase().trim() || null,
+          source: "R2_UPLOAD",
+          mediaType: "VIDEO",
+        },
+      });
+      assetId = asset.id;
+    }
+
     const upserted = await this.prisma.video.upsert({
       where: { lessonId },
       create: {
         lessonId,
+        assetId,
         videoUrl: dto.videoUrl.trim(),
         durationSeconds: dto.durationSeconds,
-        title: dto.title?.trim() || `${lesson.title} - Video`,
+        title,
+        isExternal: false,
       },
       update: {
+        assetId,
         videoUrl: dto.videoUrl.trim(),
         durationSeconds: dto.durationSeconds,
         ...(dto.title ? { title: dto.title.trim() } : {}),
+        isExternal: false,
+      },
+    });
+
+    await this.invalidateCache();
+    return upserted;
+  }
+
+  async attachVideoFromLibrary(
+    lessonId: string,
+    dto: AttachVideoFromLibraryDto,
+    user: { id: string; role: Role },
+  ) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException("Lesson not found");
+    }
+
+    const asset = await this.prisma.mediaAsset.findUnique({
+      where: { id: dto.assetId },
+    });
+
+    if (!asset) {
+      throw new NotFoundException("Media asset not found in library");
+    }
+
+    if (asset.mediaType !== "VIDEO") {
+      throw new BadRequestException("The selected media asset is not a video");
+    }
+
+    // Ensure teacher owns this asset or user is Admin
+    if (user.role !== Role.ADMIN && asset.uploaderId !== user.id) {
+      throw new ForbiddenException("You can only attach video assets from your own library");
+    }
+
+    const title = dto.customTitle?.trim() || asset.name;
+    const durationSeconds = asset.durationSeconds || 0;
+
+    const upserted = await this.prisma.video.upsert({
+      where: { lessonId },
+      create: {
+        lessonId,
+        assetId: asset.id,
+        videoUrl: asset.fileUrl,
+        durationSeconds,
+        title,
+        isExternal: asset.source === "EXTERNAL_URL",
+      },
+      update: {
+        assetId: asset.id,
+        videoUrl: asset.fileUrl,
+        durationSeconds,
+        title,
+        isExternal: asset.source === "EXTERNAL_URL",
       },
     });
 

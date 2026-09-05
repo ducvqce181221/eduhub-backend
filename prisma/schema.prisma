@@ -38,6 +38,16 @@ enum NotificationType {
   SYSTEM_BROADCAST
 }
 
+enum MediaType {
+  VIDEO
+  DOCUMENT
+}
+
+enum AssetSource {
+  R2_UPLOAD
+  EXTERNAL_URL
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique @db.VarChar(255)
@@ -55,6 +65,7 @@ model User {
   lessonProgress LessonProgress[]
   quizAttempts   QuizAttempt[]
   notifications  Notification[]
+  mediaAssets    MediaAsset[]
 
   @@map("users")
 }
@@ -133,31 +144,62 @@ model Lesson {
 }
 
 model Video {
-  id              String   @id @default(uuid()) @db.Uuid
-  lessonId        String   @unique @map("lesson_id") @db.Uuid
-  title           String   @db.VarChar(200)
-  videoUrl        String   @map("video_url") @db.VarChar(500)
-  durationSeconds Int      @map("duration_seconds")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id              String      @id @default(uuid()) @db.Uuid
+  lessonId        String      @unique @map("lesson_id") @db.Uuid
+  assetId         String?     @map("asset_id") @db.Uuid
+  title           String      @db.VarChar(200)
+  videoUrl        String      @map("video_url") @db.VarChar(500)
+  durationSeconds Int         @map("duration_seconds")
+  isExternal      Boolean     @default(false) @map("is_external")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
 
-  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  asset  MediaAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
+  @@index([assetId])
   @@map("videos")
 }
 
 model Resource {
-  id        String   @id @default(uuid()) @db.Uuid
-  lessonId  String   @map("lesson_id") @db.Uuid
-  name      String   @db.VarChar(200)
-  fileUrl   String   @map("file_url") @db.VarChar(500)
-  fileType  String   @map("file_type") @db.VarChar(50)
-  fileSize  Int      @map("file_size")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String      @id @default(uuid()) @db.Uuid
+  lessonId   String      @map("lesson_id") @db.Uuid
+  assetId    String?     @map("asset_id") @db.Uuid
+  name       String      @db.VarChar(200)
+  fileUrl    String      @map("file_url") @db.VarChar(500)
+  fileType   String      @map("file_type") @db.VarChar(50)
+  fileSize   Int?        @map("file_size")
+  isExternal Boolean     @default(false) @map("is_external")
+  createdAt  DateTime    @default(now()) @map("created_at")
 
-  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  asset  MediaAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
+  @@index([assetId])
   @@map("resources")
+}
+
+model MediaAsset {
+  id              String      @id @default(uuid()) @db.Uuid
+  uploaderId      String      @map("uploader_id") @db.Uuid
+  name            String      @db.VarChar(200)
+  fileUrl         String      @map("file_url") @db.VarChar(500)
+  fileType        String      @map("file_type") @db.VarChar(50)
+  fileSize        Int?        @map("file_size")
+  durationSeconds Int?        @map("duration_seconds")
+  contentHash     String?     @map("content_hash") @db.VarChar(64)
+  source          AssetSource @default(R2_UPLOAD)
+  mediaType       MediaType   @map("media_type")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  uploader        User        @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  resources       Resource[]
+  videos          Video[]
+
+  @@index([uploaderId, mediaType])
+  @@index([contentHash])
+  @@map("media_assets")
 }
 
 model Quiz {

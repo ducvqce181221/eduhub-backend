@@ -4,10 +4,12 @@ import {
   Controller,
   Inject,
   Post,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiBearerAuth,
@@ -21,10 +23,12 @@ import { CloudinaryService } from "./cloudinary.service";
 import type { UploadableFile } from "./cloudinary.service";
 import { R2StorageService } from "./r2-storage.service";
 import { PresignedUrlDto } from "./dto/presigned-url.dto";
+import { CheckDuplicateDto } from "./dto/check-duplicate.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../generated/prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
 
 @ApiTags("Media & Uploads")
 @Controller("upload")
@@ -34,6 +38,8 @@ export class UploadController {
     private readonly cloudinaryService: CloudinaryService,
     @Inject(R2StorageService)
     private readonly r2StorageService: R2StorageService,
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post("image")
@@ -111,5 +117,50 @@ export class UploadController {
       throw new BadRequestException("Missing request body");
     }
     return this.r2StorageService.generatePresignedPutUrl(dto);
+  }
+
+  @Post("check-duplicate")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Check if a file with the given SHA-256 hash already exists in the user's library",
+  })
+  @ApiBody({ type: CheckDuplicateDto })
+  @ApiResponse({
+    status: 200,
+    description: "Duplicate detection result",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Teacher/Admin role required",
+  })
+  async checkDuplicate(@Body() dto: CheckDuplicateDto, @Req() req: Request) {
+    const user = req.user as { id: string; role: Role };
+
+    const where: any = {
+      contentHash: dto.hash.toLowerCase().trim(),
+      mediaType: dto.mediaType,
+    };
+
+    // Teachers search within their own library; Admins search platform-wide
+    if (user.role !== Role.ADMIN) {
+      where.uploaderId = user.id;
+    }
+
+    const existingAsset = await this.prisma.mediaAsset.findFirst({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return {
+      isDuplicate: !!existingAsset,
+      asset: existingAsset || null,
+    };
   }
 }

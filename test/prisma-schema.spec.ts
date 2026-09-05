@@ -14,7 +14,7 @@ describe("Prisma Schema & Relational Integrity (Phase 2)", () => {
     await prisma.$disconnect();
   });
 
-  it("should have all 15 models accessible via Prisma Client", async () => {
+  it("should have all 16 models accessible via Prisma Client", async () => {
     const counts = await Promise.all([
       prisma.user.count(),
       prisma.category.count(),
@@ -23,6 +23,7 @@ describe("Prisma Schema & Relational Integrity (Phase 2)", () => {
       prisma.lesson.count(),
       prisma.video.count(),
       prisma.resource.count(),
+      prisma.mediaAsset.count(),
       prisma.quiz.count(),
       prisma.question.count(),
       prisma.answer.count(),
@@ -33,7 +34,7 @@ describe("Prisma Schema & Relational Integrity (Phase 2)", () => {
       prisma.notification.count(),
     ]);
 
-    expect(counts.length).toBe(15);
+    expect(counts.length).toBe(16);
     counts.forEach((count) => {
       expect(typeof count).toBe("number");
     });
@@ -361,6 +362,109 @@ describe("Prisma Schema & Relational Integrity (Phase 2)", () => {
 
     // Cleanup
     await prisma.course.delete({ where: { id: course.id } });
+    await prisma.category.delete({ where: { id: cat.id } });
+    await prisma.user.delete({ where: { id: teacher.id } });
+  });
+
+  it("should support MediaAsset library items, link to Resource/Video, and survive Lesson deletion", async () => {
+    const teacher = await prisma.user.create({
+      data: {
+        email: `teacher-asset-${Date.now()}@eduhub.dev`,
+        passwordHash: "hash123",
+        fullName: "Asset Teacher",
+        role: "TEACHER",
+      },
+    });
+
+    const cat = await prisma.category.create({
+      data: {
+        name: "Asset Cat " + Date.now(),
+        slug: "asset-cat-" + Date.now(),
+      },
+    });
+
+    // 1. Create MediaAsset in teacher library
+    const asset = await prisma.mediaAsset.create({
+      data: {
+        uploaderId: teacher.id,
+        name: "Shared Slides.pdf",
+        fileUrl: "https://media.local/resources/shared-slides.pdf",
+        fileType: "application/pdf",
+        fileSize: 2048576,
+        contentHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        source: "R2_UPLOAD",
+        mediaType: "DOCUMENT",
+      },
+    });
+
+    expect(asset.id).toBeDefined();
+    expect(asset.uploaderId).toBe(teacher.id);
+
+    // 2. Create Course -> Chapter -> Lesson and attach resource linking to asset
+    const course = await prisma.course.create({
+      data: {
+        title: "Asset Test Course",
+        slug: `asset-course-${Date.now()}`,
+        categoryId: cat.id,
+        teacherId: teacher.id,
+        chapters: {
+          create: [
+            {
+              title: "Chapter 1",
+              order: 1,
+              lessons: {
+                create: [
+                  {
+                    title: "Lesson 1",
+                    order: 1,
+                    resources: {
+                      create: [
+                        {
+                          name: asset.name,
+                          fileUrl: asset.fileUrl,
+                          fileType: asset.fileType,
+                          fileSize: asset.fileSize,
+                          assetId: asset.id,
+                          isExternal: false,
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      include: {
+        chapters: {
+          include: {
+            lessons: {
+              include: {
+                resources: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const resource = course.chapters[0].lessons[0].resources[0];
+    expect(resource.assetId).toBe(asset.id);
+    expect(resource.isExternal).toBe(false);
+
+    // 3. Delete the course/lesson: Resource should cascade-delete, but MediaAsset must survive!
+    await prisma.course.delete({ where: { id: course.id } });
+
+    const deletedResource = await prisma.resource.findUnique({ where: { id: resource.id } });
+    expect(deletedResource).toBeNull();
+
+    const survivingAsset = await prisma.mediaAsset.findUnique({ where: { id: asset.id } });
+    expect(survivingAsset).not.toBeNull();
+    expect(survivingAsset?.id).toBe(asset.id);
+
+    // Cleanup
+    await prisma.mediaAsset.delete({ where: { id: asset.id } });
     await prisma.category.delete({ where: { id: cat.id } });
     await prisma.user.delete({ where: { id: teacher.id } });
   });

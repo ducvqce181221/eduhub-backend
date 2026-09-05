@@ -1,9 +1,11 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
 } from "class-validator";
@@ -42,13 +44,33 @@ export class CreateResourceDto {
   @MaxLength(50)
   fileType!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: Number,
     example: 2048576,
     description: "File size in bytes (max 2,147,483,647)",
   })
+  @IsOptional()
   @IsInt()
   @IsPositive()
   @Max(2147483647)
-  fileSize!: number;
+  fileSize?: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    description: "SHA-256 content hash of the file",
+  })
+  @IsOptional()
+  @IsString()
+  contentHash?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: "123e4567-e89b-12d3-a456-426614174000",
+    description: "Associated MediaAsset UUID if selected from library",
+  })
+  @IsOptional()
+  @IsUUID()
+  assetId?: string;
 }
+

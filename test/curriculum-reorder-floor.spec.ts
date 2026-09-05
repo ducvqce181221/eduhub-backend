@@ -130,6 +130,9 @@ describe("Phase 5 - Part 5: Curriculum Reorder, Floor Protection & Media", () =>
     await prisma.category.deleteMany({
       where: { id: activeCategoryId },
     });
+    await prisma.mediaAsset.deleteMany({
+      where: { uploaderId: { in: [teacherId, studentId] } },
+    });
     await prisma.user.deleteMany({
       where: { id: { in: [teacherId, studentId] } },
     });

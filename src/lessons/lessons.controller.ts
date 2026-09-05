@@ -27,6 +27,10 @@ import { UpdateLessonDto } from "./dto/update-lesson.dto";
 import { ReorderLessonsDto } from "./dto/reorder-lessons.dto";
 import { UpsertVideoDto } from "./dto/upsert-video.dto";
 import { CreateResourceDto } from "./dto/create-resource.dto";
+import {
+  AttachResourceFromLibraryDto,
+  AttachVideoFromLibraryDto,
+} from "./dto/attach-from-library.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { CourseOwnershipGuard } from "../auth/guards/course-ownership.guard";
@@ -161,5 +165,64 @@ export class LessonsController {
   @ApiResponse({ status: 404, description: "Lesson not found" })
   async addResource(@Param("id") id: string, @Body() dto: CreateResourceDto) {
     return this.resourcesService.create(id, dto);
+  }
+
+  @Post("lessons/:id/resources/from-library")
+  @UseGuards(JwtAuthGuard, RolesGuard, CourseOwnershipGuard)
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Attach existing resource from teacher's library to lesson",
+  })
+  @ApiParam({ name: "id", type: String, description: "Lesson UUID" })
+  @ApiBody({ type: AttachResourceFromLibraryDto })
+  @ApiResponse({
+    status: 201,
+    description: "Resource attached from library successfully",
+  })
+  @ApiResponse({ status: 400, description: "Validation failure" })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Course or asset ownership failed",
+  })
+  @ApiResponse({ status: 404, description: "Lesson or asset not found" })
+  async attachResourceFromLibrary(
+    @Param("id") id: string,
+    @Body() dto: AttachResourceFromLibraryDto,
+    @Req() req: Request,
+  ) {
+    const user = req.user as { id: string; role: Role };
+    return this.resourcesService.attachFromLibrary(id, dto, user);
+  }
+
+  @Put("lessons/:id/video/from-library")
+  @UseGuards(JwtAuthGuard, RolesGuard, CourseOwnershipGuard)
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Attach existing video from teacher's library to lesson",
+  })
+  @ApiParam({ name: "id", type: String, description: "Lesson UUID" })
+  @ApiBody({ type: AttachVideoFromLibraryDto })
+  @ApiResponse({
+    status: 200,
+    description: "Video attached from library successfully",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Asset is not a video or invalid data",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Course or asset ownership failed",
+  })
+  @ApiResponse({ status: 404, description: "Lesson or asset not found" })
+  async attachVideoFromLibrary(
+    @Param("id") id: string,
+    @Body() dto: AttachVideoFromLibraryDto,
+    @Req() req: Request,
+  ) {
+    const user = req.user as { id: string; role: Role };
+    return this.lessonsService.attachVideoFromLibrary(id, dto, user);
   }
 }

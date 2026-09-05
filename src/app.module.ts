@@ -16,6 +16,7 @@ import { EnrollmentsModule } from "./enrollments/enrollments.module";
 import { ProgressModule } from "./progress/progress.module";
 import { QuizzesModule } from "./quizzes/quizzes.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { MediaAssetsModule } from "./media-assets/media-assets.module";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
     CaslModule,
     AuthModule,
     UploadModule,
+    MediaAssetsModule,
     UsersModule,
     CategoriesModule,
     CoursesModule,

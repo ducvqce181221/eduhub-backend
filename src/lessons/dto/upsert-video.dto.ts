@@ -39,4 +39,22 @@ export class UpsertVideoDto {
   @IsOptional()
   @MaxLength(200)
   title?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    description: "SHA-256 content hash of the video file",
+  })
+  @IsOptional()
+  @IsString()
+  contentHash?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: "123e4567-e89b-12d3-a456-426614174000",
+    description: "Associated MediaAsset UUID if selected from library",
+  })
+  @IsOptional()
+  @IsString()
+  assetId?: string;
 }

@@ -18,6 +18,7 @@ export async function cleanDatabase(prisma: PrismaClient) {
   await prisma.notification.deleteMany();
   await prisma.course.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.mediaAsset.deleteMany();
   await prisma.user.deleteMany();
 
   console.log("✓ Database clean complete.");

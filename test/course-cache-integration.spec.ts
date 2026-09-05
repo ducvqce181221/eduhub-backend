@@ -132,6 +132,7 @@ describe("Phase 8 - Cụm 2: Course Catalog Caching & Invalidation Integration T
       where: { id: { in: [publishedCourseId, draftCourseId] } },
     });
     await prisma.category.deleteMany({ where: { id: testCategoryId } });
+    await prisma.mediaAsset.deleteMany({ where: { uploaderId: testTeacherId } });
     await prisma.user.deleteMany({ where: { id: testTeacherId } });
 
     if (moduleRef) {

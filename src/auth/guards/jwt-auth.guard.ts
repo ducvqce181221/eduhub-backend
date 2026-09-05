@@ -16,6 +16,7 @@ export interface AuthenticatedUser {
 
 declare global {
   namespace Express {
+    interface User extends AuthenticatedUser {}
     interface Request {
       user?: AuthenticatedUser;
     }

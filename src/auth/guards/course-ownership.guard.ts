@@ -3,16 +3,27 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { CaslAbilityFactory } from "../../casl/casl-ability.factory";
+import { Action } from "../../casl/casl.types";
+import { subject } from "@casl/ability";
 
 @Injectable()
 export class CourseOwnershipGuard implements CanActivate {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
-  ) {}
+    @Optional()
+    @Inject(CaslAbilityFactory)
+    private readonly caslAbilityFactory: CaslAbilityFactory = new CaslAbilityFactory(),
+  ) {
+    if (!this.caslAbilityFactory) {
+      this.caslAbilityFactory = new CaslAbilityFactory();
+    }
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -175,11 +186,15 @@ export class CourseOwnershipGuard implements CanActivate {
       }
     }
 
-    if (teacherId && teacherId !== user.id) {
-      throw new ForbiddenException("You do not own this course");
-    }
-
     if (resolvedCourse) {
+      const ability = this.caslAbilityFactory.createForUser(user);
+      const isAllowed = ability.can(
+        Action.Update,
+        subject("Course", resolvedCourse),
+      );
+      if (!isAllowed) {
+        throw new ForbiddenException("You do not own this course");
+      }
       request.course = resolvedCourse;
     }
 

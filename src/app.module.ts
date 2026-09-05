@@ -4,6 +4,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { RedisCacheModule } from "./common/cache/redis-cache.module";
 import { EventsModule } from "./common/events/events.module";
 import { HealthModule } from "./health/health.module";
+import { CaslModule } from "./casl/casl.module";
 import { AuthModule } from "./auth/auth.module";
 import { UploadModule } from "./upload/upload.module";
 import { UsersModule } from "./users/users.module";
@@ -25,6 +26,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
     RedisCacheModule,
     EventsModule,
     HealthModule,
+    CaslModule,
     AuthModule,
     UploadModule,
     UsersModule,

@@ -182,27 +182,33 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
     const retryCount = (msg.properties.headers?.["x-retry-count"] as number) || 0;
     const maxRetries = 3;
 
-    if (retryCount < maxRetries) {
+    try {
+      if (retryCount < maxRetries) {
+        this.logger.warn(
+          `Retrying event (attempt ${retryCount + 1}/${maxRetries}): ${error.message}`,
+        );
+        this.channel.ack(msg);
+
+        const headers = {
+          ...msg.properties.headers,
+          "x-retry-count": retryCount + 1,
+        };
+
+        this.channel.sendToQueue(
+          EVENTS_CONSTANTS.NOTIFICATIONS_QUEUE,
+          msg.content,
+          { headers, persistent: true },
+        );
+      } else {
+        this.logger.error(
+          `Max retries exceeded for message. Routing to Dead-Letter Queue: ${error.message}`,
+        );
+        this.channel.nack(msg, false, false);
+      }
+    } catch (channelErr) {
       this.logger.warn(
-        `Retrying event (attempt ${retryCount + 1}/${maxRetries}): ${error.message}`,
+        `Failed to ack/nack message (channel closing): ${(channelErr as Error).message}`,
       );
-      this.channel.ack(msg);
-
-      const headers = {
-        ...msg.properties.headers,
-        "x-retry-count": retryCount + 1,
-      };
-
-      this.channel.sendToQueue(
-        EVENTS_CONSTANTS.NOTIFICATIONS_QUEUE,
-        msg.content,
-        { headers, persistent: true },
-      );
-    } else {
-      this.logger.error(
-        `Max retries exceeded for message. Routing to Dead-Letter Queue: ${error.message}`,
-      );
-      this.channel.nack(msg, false, false);
     }
   }
 

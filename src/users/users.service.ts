@@ -217,4 +217,41 @@ export class UsersService {
 
     return updated;
   }
+
+  /**
+   * Compute platform-wide overall user metrics (Admin only)
+   */
+  async getPlatformUserStats() {
+    const [roleGroups, inactiveCount, total] = await Promise.all([
+      this.prisma.user.groupBy({
+        by: ["role"],
+        _count: {
+          _all: true,
+        },
+      }),
+      this.prisma.user.count({
+        where: { isActive: false },
+      }),
+      this.prisma.user.count(),
+    ]);
+
+    let teachers = 0;
+    let students = 0;
+    let admins = 0;
+
+    for (const group of roleGroups) {
+      if (group.role === "TEACHER") teachers = group._count._all;
+      else if (group.role === "STUDENT") students = group._count._all;
+      else if (group.role === "ADMIN") admins = group._count._all;
+    }
+
+    return {
+      total,
+      teachers,
+      students,
+      admins,
+      active: total - inactiveCount,
+      inactive: inactiveCount,
+    };
+  }
 }

@@ -60,6 +60,16 @@ export class UsersController {
     };
   }
 
+  @Get("stats")
+  @ApiOperation({ summary: "Get overall platform user statistics (Admin only)" })
+  @ApiResponse({
+    status: 200,
+    description: "Platform user statistics",
+  })
+  async getStats() {
+    return this.usersService.getPlatformUserStats();
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Get user details by ID (Admin only)" })
   @ApiResponse({

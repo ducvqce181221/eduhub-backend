@@ -60,6 +60,16 @@ export class CoursesController {
     return this.coursesService.findAll(query);
   }
 
+  @Get("stats")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get overall platform course statistics (Admin only)" })
+  @ApiResponse({ status: 200, description: "Platform course statistics" })
+  async getStats() {
+    return this.coursesService.getPlatformCourseStats();
+  }
+
   @Get(":id")
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: "View course details" })

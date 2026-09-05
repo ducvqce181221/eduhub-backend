@@ -61,4 +61,13 @@ export class QueryCoursesDto {
   @IsEnum(CourseLevel)
   @IsOptional()
   level?: CourseLevel;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: "PUBLISHED",
+    description: "Filter courses by status (PUBLISHED, DRAFT, ARCHIVED, or ALL)",
+  })
+  @IsString()
+  @IsOptional()
+  status?: string;
 }

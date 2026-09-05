@@ -36,6 +36,7 @@ export class CoursesService {
       level: query.level || "",
       search: query.search?.trim().toLowerCase() || "",
       sort: (query as any).sort || "newest",
+      status: query.status || "",
     };
     const hash = createHash("md5").update(JSON.stringify(normalized)).digest("hex");
     return `${CACHE_CONSTANTS.COURSES_LIST_PREFIX}${hash}`;
@@ -109,9 +110,13 @@ export class CoursesService {
     const limit = Math.max(1, Number(query.limit) || 10);
     const skip = (page - 1) * limit;
 
-    const whereClause: any = {
-      status: CourseStatus.PUBLISHED,
-    };
+    const whereClause: any = {};
+
+    if (query.status && query.status !== "ALL") {
+      whereClause.status = query.status as CourseStatus;
+    } else if (!query.status) {
+      whereClause.status = CourseStatus.PUBLISHED;
+    }
 
     if (query.categoryId) {
       whereClause.categoryId = query.categoryId;
@@ -397,5 +402,37 @@ export class CoursesService {
 
     await this.invalidateCache();
     return archived;
+  }
+
+  /**
+   * Compute platform-wide course metrics (Admin only)
+   */
+  async getPlatformCourseStats() {
+    const [statusGroups, total] = await Promise.all([
+      this.prisma.course.groupBy({
+        by: ["status"],
+        _count: {
+          _all: true,
+        },
+      }),
+      this.prisma.course.count(),
+    ]);
+
+    let published = 0;
+    let draft = 0;
+    let archived = 0;
+
+    for (const group of statusGroups) {
+      if (group.status === CourseStatus.PUBLISHED) published = group._count._all;
+      else if (group.status === CourseStatus.DRAFT) draft = group._count._all;
+      else if (group.status === CourseStatus.ARCHIVED) archived = group._count._all;
+    }
+
+    return {
+      total,
+      published,
+      draft,
+      archived,
+    };
   }
 }

@@ -234,4 +234,68 @@ describe("Phase 5 - Part 3: Course Management & Lifecycle Transitions", () => {
     expect(bySlug.id).toBe(course.id);
     expect(bySlug.slug).toBe(`slug-query-test-${timestamp}`);
   });
+
+  it("should mask videoUrl and fileUrl for guest/un-enrolled visitors while retaining metadata", async () => {
+    const course = await prisma.course.create({
+      data: {
+        title: "Protected Content Course",
+        slug: `protected-content-${timestamp}`,
+        categoryId: activeCategoryId,
+        teacherId: teacherAId,
+        status: CourseStatus.PUBLISHED,
+        publishedAt: new Date(),
+        chapters: {
+          create: [
+            {
+              title: "Chapter 1",
+              order: 1,
+              lessons: {
+                create: [
+                  {
+                    title: "Lesson 1",
+                    order: 1,
+                    video: {
+                      create: {
+                        title: "Intro Video",
+                        videoUrl: "https://media.eduhub.local/videos/secret-video.mp4",
+                        durationSeconds: 600,
+                      },
+                    },
+                    resources: {
+                      create: [
+                        {
+                          name: "Secret Slide.pdf",
+                          fileUrl: "https://media.eduhub.local/resources/secret-slide.pdf",
+                          fileType: "application/pdf",
+                          fileSize: 1024,
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    // 1. Guest / Anonymous query -> videoUrl and fileUrl MUST be masked
+    const guestView = await coursesService.findOne(course.id);
+    const guestLesson = guestView.chapters[0].lessons[0];
+    expect(guestLesson.title).toBe("Lesson 1");
+    expect(guestLesson.video?.durationSeconds).toBe(600);
+    expect((guestLesson.video as any)?.videoUrl).toBeUndefined();
+    expect(guestLesson.resources[0].name).toBe("Secret Slide.pdf");
+    expect((guestLesson.resources[0] as any)?.fileUrl).toBeUndefined();
+
+    // 2. Owner teacher query -> videoUrl and fileUrl MUST be preserved
+    const ownerView = await coursesService.findOne(course.id, {
+      id: teacherAId,
+      role: Role.TEACHER,
+    });
+    const ownerLesson = ownerView.chapters[0].lessons[0];
+    expect(ownerLesson.video?.videoUrl).toBe("https://media.eduhub.local/videos/secret-video.mp4");
+    expect(ownerLesson.resources[0].fileUrl).toBe("https://media.eduhub.local/resources/secret-slide.pdf");
+  });
 });

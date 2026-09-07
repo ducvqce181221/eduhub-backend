@@ -29,6 +29,8 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { RateLimitGuard } from "../auth/guards/rate-limit.guard";
+import { RateLimit } from "../auth/decorators/rate-limit.decorator";
 
 @ApiTags("Media & Uploads")
 @Controller("upload")
@@ -43,7 +45,8 @@ export class UploadController {
   ) {}
 
   @Post("image")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(RateLimitGuard, JwtAuthGuard)
+  @RateLimit(20, 60)
   @ApiBearerAuth()
   @UseInterceptors(FileInterceptor("file"))
   @ApiOperation({ summary: "Upload image (Avatar / Thumbnail) to Cloudinary" })
@@ -73,6 +76,10 @@ export class UploadController {
     status: 401,
     description: "Unauthorized",
   })
+  @ApiResponse({
+    status: 429,
+    description: "Too Many Requests - Rate limit exceeded",
+  })
   async uploadImage(@UploadedFile() file?: UploadableFile) {
     if (!file) {
       throw new BadRequestException("No image file provided");
@@ -88,8 +95,9 @@ export class UploadController {
   }
 
   @Post("presigned-url")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(RateLimitGuard, JwtAuthGuard, RolesGuard)
   @Roles(Role.TEACHER, Role.ADMIN)
+  @RateLimit(20, 60)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -112,6 +120,10 @@ export class UploadController {
     status: 403,
     description: "Forbidden - Teacher/Admin role required",
   })
+  @ApiResponse({
+    status: 429,
+    description: "Too Many Requests - Rate limit exceeded",
+  })
   async generatePresignedUrl(@Body() dto: PresignedUrlDto) {
     if (!dto) {
       throw new BadRequestException("Missing request body");
@@ -120,8 +132,9 @@ export class UploadController {
   }
 
   @Post("check-duplicate")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(RateLimitGuard, JwtAuthGuard, RolesGuard)
   @Roles(Role.TEACHER, Role.ADMIN)
+  @RateLimit(30, 60)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -161,6 +174,7 @@ export class UploadController {
     return {
       isDuplicate: !!existingAsset,
       asset: existingAsset || null,
+      existingAsset: existingAsset || null,
     };
   }
 }

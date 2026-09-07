@@ -51,11 +51,9 @@ export interface ValidatedUrlResult {
 }
 
 /**
- * Validates scheme, guards against SSRF, and tests reachability of external URLs.
+ * Validates protocol, hostname, DNS, and IP address safety to prevent SSRF.
  */
-export async function validateAndInspectExternalUrl(
-  rawUrl: string,
-): Promise<ValidatedUrlResult> {
+export async function validateUrlSafety(rawUrl: string): Promise<URL> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -72,7 +70,7 @@ export async function validateAndInspectExternalUrl(
 
   const hostname = parsed.hostname;
 
-  // 2. Reject obvious localhost names
+  // 2. Reject obvious localhost / private names
   if (
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
@@ -99,34 +97,95 @@ export async function validateAndInspectExternalUrl(
     throw new BadRequestException(`Could not resolve hostname '${hostname}'. Please verify the domain name.`);
   }
 
-  // 4. Reachability check (HEAD with GET fallback)
-  const normalizedUrl = parsed.toString();
+  return parsed;
+}
+
+const MAX_REDIRECT_HOPS = 3;
+
+/**
+ * Executes a fetch request with manual redirect following, validating target URL safety at each hop.
+ */
+async function safeFetchWithRedirects(
+  initialUrl: string,
+  method: "HEAD" | "GET",
+  headers: Record<string, string>,
+): Promise<{ response: Response; finalUrl: string }> {
+  let currentUrl = initialUrl;
+  let hopCount = 0;
+
+  while (true) {
+    await validateUrlSafety(currentUrl);
+
+    const response = await fetch(currentUrl, {
+      method,
+      headers,
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    const isRedirect =
+      response.status === 301 ||
+      response.status === 302 ||
+      response.status === 303 ||
+      response.status === 307 ||
+      response.status === 308;
+
+    if (isRedirect) {
+      hopCount++;
+      if (hopCount > MAX_REDIRECT_HOPS) {
+        throw new BadRequestException("Too many redirects (exceeded maximum limit of 3).");
+      }
+
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new BadRequestException("External URL redirect response is missing a Location header.");
+      }
+
+      // Resolve relative redirect against current URL
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    return { response, finalUrl: currentUrl };
+  }
+}
+
+/**
+ * Validates scheme, guards against SSRF across all redirect hops, and tests reachability of external URLs.
+ */
+export async function validateAndInspectExternalUrl(
+  rawUrl: string,
+): Promise<ValidatedUrlResult> {
+  const initialParsed = await validateUrlSafety(rawUrl);
+  const normalizedInitialUrl = initialParsed.toString();
+
   const userAgent =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 EduHub/1.0";
 
   let response: Response;
-  try {
-    // Try HEAD request first
-    response = await fetch(normalizedUrl, {
-      method: "HEAD",
-      headers: { "User-Agent": userAgent },
-      redirect: "follow",
-      signal: AbortSignal.timeout(5000),
-    });
+  let finalUrl: string;
 
-    // If HEAD is disallowed (405 Method Not Allowed) or blocked, fallback to light GET
+  try {
+    // 1. Try HEAD request with safe redirect tracking
+    const result = await safeFetchWithRedirects(normalizedInitialUrl, "HEAD", {
+      "User-Agent": userAgent,
+    });
+    response = result.response;
+    finalUrl = result.finalUrl;
+
+    // 2. If HEAD is disallowed (405) or forbidden (403), fallback to light GET (Range: bytes=0-0)
     if (response.status === 405 || response.status === 403) {
-      response = await fetch(normalizedUrl, {
-        method: "GET",
-        headers: {
-          "User-Agent": userAgent,
-          Range: "bytes=0-0",
-        },
-        redirect: "follow",
-        signal: AbortSignal.timeout(5000),
+      const getResult = await safeFetchWithRedirects(normalizedInitialUrl, "GET", {
+        "User-Agent": userAgent,
+        Range: "bytes=0-0",
       });
+      response = getResult.response;
+      finalUrl = getResult.finalUrl;
     }
   } catch (err: any) {
+    if (err instanceof BadRequestException) {
+      throw err;
+    }
     throw new BadRequestException(
       `Failed to connect to the external URL: ${err.message || "Connection timed out or network error"}. Please ensure the URL is publicly accessible.`,
     );
@@ -152,7 +211,7 @@ export async function validateAndInspectExternalUrl(
   }
 
   return {
-    normalizedUrl,
+    normalizedUrl: finalUrl,
     mimeType,
     fileSize,
   };

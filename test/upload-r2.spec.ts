@@ -36,6 +36,8 @@ describe("Phase 5 - Part 1: Media Storage & Cloudflare R2 Presigned URLs", () =>
     expect(result).toBeDefined();
     expect(result.uploadUrl).toBeDefined();
     expect(result.uploadUrl).toContain(".r2.cloudflarestorage.com");
+    expect(result.uploadUrl).not.toContain("x-amz-checksum");
+    expect(result.uploadUrl).not.toContain("x-amz-sdk-checksum-algorithm");
     expect(result.fileUrl).toContain("/videos/");
     expect(result.key).toMatch(/^videos\/\d+-[a-z0-9_-]+-lesson-intro\.mp4$/i);
     expect(result.expiresIn).toBe(900);
@@ -104,5 +106,27 @@ describe("Phase 5 - Part 1: Media Storage & Cloudflare R2 Presigned URLs", () =>
         folder: UploadFolder.RESOURCES,
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it("should extract R2 storage key from full public URL or relative path", () => {
+    expect(
+      r2StorageService.extractKeyFromUrl("https://media.eduhub.local/videos/123-intro.mp4"),
+    ).toBe("videos/123-intro.mp4");
+    expect(
+      r2StorageService.extractKeyFromUrl("https://pub-r2.dev/resources/456-slide.pdf?v=1"),
+    ).toBe("resources/456-slide.pdf");
+    expect(r2StorageService.extractKeyFromUrl("https://youtube.com/watch?v=abc")).toBeNull();
+  });
+
+  it("should successfully generate a presigned GET URL with 15-minute expiration for video key", async () => {
+    const signedUrl = await r2StorageService.generatePresignedGetUrl(
+      "https://media.eduhub.local/videos/1788783914625-v6x-zoTW-1-lecture.mp4",
+      900,
+    );
+
+    expect(signedUrl).toBeDefined();
+    expect(signedUrl).toContain(".r2.cloudflarestorage.com/videos/");
+    expect(signedUrl).toContain("X-Amz-Signature=");
+    expect(signedUrl).toContain("X-Amz-Expires=900");
   });
 });

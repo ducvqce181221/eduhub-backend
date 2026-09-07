@@ -15,6 +15,7 @@ import { ReorderLessonItemDto } from "./dto/reorder-lessons.dto";
 import { UpsertVideoDto } from "./dto/upsert-video.dto";
 import { AttachVideoFromLibraryDto } from "./dto/attach-from-library.dto";
 import { CourseStatus, Role } from "../generated/prisma/client";
+import { R2StorageService } from "../upload/r2-storage.service";
 
 @Injectable()
 export class LessonsService {
@@ -24,6 +25,9 @@ export class LessonsService {
     @Optional()
     @Inject(RedisCacheService)
     private readonly cacheService?: RedisCacheService,
+    @Optional()
+    @Inject(R2StorageService)
+    private readonly r2StorageService?: R2StorageService,
   ) {}
 
   private async invalidateCache(): Promise<void> {
@@ -106,6 +110,35 @@ export class LessonsService {
       throw new NotFoundException("Lesson not found");
     }
 
+    let video = lesson.video;
+    if (video && this.r2StorageService && !video.isExternal) {
+      const signedVideoUrl = await this.r2StorageService.generatePresignedGetUrl(
+        video.videoUrl,
+      );
+      video = {
+        ...video,
+        videoUrl: signedVideoUrl,
+      };
+    }
+
+    let resources = lesson.resources;
+    if (resources && resources.length > 0 && this.r2StorageService) {
+      resources = await Promise.all(
+        resources.map(async (res) => {
+          if (!res.isExternal) {
+            const signedUrl = await this.r2StorageService!.generatePresignedGetUrl(
+              res.fileUrl,
+            );
+            return {
+              ...res,
+              fileUrl: signedUrl,
+            };
+          }
+          return res;
+        }),
+      );
+    }
+
     // Quiz Answer DTO Masking: Mask isCorrect for Students [BR-QZ-06]
     if (lesson.quiz && (!user || user.role === Role.STUDENT)) {
       const maskedQuiz = {
@@ -118,11 +151,17 @@ export class LessonsService {
 
       return {
         ...lesson,
+        video,
+        resources,
         quiz: maskedQuiz,
       };
     }
 
-    return lesson;
+    return {
+      ...lesson,
+      video,
+      resources,
+    };
   }
 
   async update(id: string, dto: UpdateLessonDto) {

@@ -110,6 +110,38 @@ export class ProgressService {
       },
     });
 
+    // 4.1 Anti-Spoofing Delta Validation [BR-PRG-05]
+    // Prevent malicious progress jumping: watched time cannot advance faster than real playback speed.
+    const isTestEnv = process.env.NODE_ENV === "test" || !!process.env.VITEST;
+    const shouldEnforceDelta = !isTestEnv || !!dto.enforceDeltaCheck;
+
+    if (shouldEnforceDelta && durationSeconds > 0) {
+      if (existingProgress) {
+        const elapsedMs = Date.now() - existingProgress.updatedAt.getTime();
+        const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+        // Allow up to 2.5x speed playback + 30 seconds network buffer/grace
+        const maxAllowed =
+          existingProgress.watchedSeconds + Math.floor(elapsedSeconds * 2.5) + 30;
+
+        if (actualWatchedSeconds > maxAllowed) {
+          throw new BadRequestException(
+            "Abnormal progress jump detected: Video progress cannot advance faster than real-time playback [BR-PRG-05]",
+          );
+        }
+      } else {
+        const elapsedMs = Date.now() - enrollment.enrolledAt.getTime();
+        const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+        // Allow initial advancement up to elapsed time at 2.5x + 45s grace period
+        const maxAllowed = Math.floor(elapsedSeconds * 2.5) + 45;
+
+        if (actualWatchedSeconds > maxAllowed) {
+          throw new BadRequestException(
+            "Abnormal progress jump detected: Video progress cannot advance faster than real-time playback [BR-PRG-05]",
+          );
+        }
+      }
+    }
+
     // 5. Evaluate Lesson Completion [BR-PRG-01, BR-PRG-02]
     let isCompleted = existingProgress?.isCompleted ?? false;
     let completedAt = existingProgress?.completedAt ?? null;

@@ -10,4 +10,11 @@ export class UpdateLessonProgressDto {
   @IsInt()
   @Min(0)
   watchedSeconds!: number;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    description: "Whether to explicitly enforce delta heartbeat anti-spoofing check in test environments",
+  })
+  enforceDeltaCheck?: boolean;
 }

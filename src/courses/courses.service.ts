@@ -16,7 +16,7 @@ import { UpdateCourseDto } from "./dto/update-course.dto";
 import { QueryCoursesDto } from "./dto/query-courses.dto";
 import { generateCourseSlug } from "../common/utils/slug.util";
 import { validateCoursePublish } from "./course-publish.validator";
-import { CourseStatus, Role } from "../generated/prisma/client";
+import { CourseStatus, EnrollmentStatus, Role } from "../generated/prisma/client";
 
 @Injectable()
 export class CoursesService {
@@ -245,6 +245,59 @@ export class CoursesService {
           "You do not have access to this unpublished course",
         );
       }
+    }
+
+    // Check if requester has authorized content manager privilege or active enrollment
+    let canAccessContent = false;
+    if (user) {
+      if (user.role === Role.ADMIN || course.teacherId === user.id) {
+        canAccessContent = true;
+      } else {
+        const enrollment = await this.prisma.enrollment.findUnique({
+          where: {
+            studentId_courseId: {
+              studentId: user.id,
+              courseId: course.id,
+            },
+          },
+        });
+        if (
+          enrollment &&
+          (enrollment.status === EnrollmentStatus.ACTIVE ||
+            enrollment.status === EnrollmentStatus.COMPLETED)
+        ) {
+          canAccessContent = true;
+        }
+      }
+    }
+
+    if (!canAccessContent) {
+      // Mask raw streaming videoUrl and downloadable fileUrl for un-enrolled / guest visitors
+      return {
+        ...course,
+        chapters: course.chapters.map((ch) => ({
+          ...ch,
+          lessons: ch.lessons.map((l) => ({
+            ...l,
+            video: l.video
+              ? {
+                  id: l.video.id,
+                  lessonId: l.video.lessonId,
+                  durationSeconds: l.video.durationSeconds,
+                  title: l.video.title,
+                }
+              : null,
+            resources: l.resources.map((r) => ({
+              id: r.id,
+              lessonId: r.lessonId,
+              name: r.name,
+              fileType: r.fileType,
+              fileSize: r.fileSize,
+              isExternal: r.isExternal,
+            })),
+          })),
+        })),
+      };
     }
 
     return course;

@@ -41,26 +41,46 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // Swagger Documentation
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle("EduHub API")
-    .setDescription("The EduHub Learning Management System REST API Documentation")
-    .setVersion("1.0")
-    .addBearerAuth()
-    .build();
-
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup("api/docs", app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
+  // Security headers middleware (anti-clickjacking, MIME sniffing, HSTS)
+  app.use((_req: any, res: any, next: any) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-XSS-Protection", "0");
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+    res.removeHeader?.("X-Powered-By");
+    next();
   });
 
-  // Serve swagger json endpoint for type generation (/api/docs-json)
-  const httpAdapter = app.getHttpAdapter();
-  httpAdapter.get("/api/docs-json", (_req: any, res: any) => {
-    res.json(document);
-  });
+  // Swagger Documentation (available in dev/staging, guarded in production)
+  const isProduction = process.env.NODE_ENV === "production";
+  const isSwaggerEnabled = !isProduction || process.env.ENABLE_SWAGGER === "true";
+
+  if (isSwaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle("EduHub API")
+      .setDescription("The EduHub Learning Management System REST API Documentation")
+      .setVersion("1.0")
+      .addBearerAuth()
+      .build();
+
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup("api/docs", app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
+
+    // Serve swagger json endpoint for type generation (/api/docs-json)
+    const httpAdapter = app.getHttpAdapter();
+    httpAdapter.get("/api/docs-json", (_req: any, res: any) => {
+      res.json(document);
+    });
+  }
 
   const rawPort = (process.env.PORT ?? "").trim();
   const parsedPort = rawPort.length > 0 ? Number(rawPort) : Number.NaN;
@@ -69,8 +89,10 @@ async function bootstrap() {
 
   await app.listen(port, "0.0.0.0");
   console.log(`EduHub API is running at http://localhost:${port}/api/v1`);
-  console.log(`Swagger UI is available at http://localhost:${port}/api/docs`);
-  console.log(`Swagger JSON is available at http://localhost:${port}/api/docs-json`);
+  if (isSwaggerEnabled) {
+    console.log(`Swagger UI is available at http://localhost:${port}/api/docs`);
+    console.log(`Swagger JSON is available at http://localhost:${port}/api/docs-json`);
+  }
 }
 
 bootstrap().catch((error) => {

@@ -74,7 +74,7 @@ export class CloudinaryService {
           }
 
           resolve({
-            url: result.url,
+            url: result.secure_url || result.url,
             secureUrl: result.secure_url,
             publicId: result.public_id,
             format: result.format,

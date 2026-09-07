@@ -5,9 +5,10 @@ import { LessonsService } from "./lessons.service";
 import { ResourcesService } from "./resources.service";
 import { PrismaModule } from "../prisma/prisma.module";
 import { AuthModule } from "../auth/auth.module";
+import { UploadModule } from "../upload/upload.module";
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, UploadModule],
   controllers: [LessonsController, ResourcesController],
   providers: [LessonsService, ResourcesService],
   exports: [LessonsService, ResourcesService],

@@ -6,7 +6,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nanoid } from "nanoid";
 import { PresignedUrlDto, UploadFolder } from "./dto/presigned-url.dto";
@@ -51,6 +51,8 @@ export class R2StorageService {
         accessKeyId,
         secretAccessKey,
       },
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
     });
 
     return this.s3Client;
@@ -105,11 +107,19 @@ export class R2StorageService {
       Bucket: bucketName,
       Key: uniqueKey,
       ContentType: fileType,
-      ContentLength: fileSize,
     });
 
     const expiresIn = 900; // 15 minutes
-    const uploadUrl = await getSignedUrl(client, command, { expiresIn });
+    const uploadUrl = await getSignedUrl(client, command, {
+      expiresIn,
+      unhoistableHeaders: new Set([
+        "x-amz-checksum-crc32",
+        "x-amz-checksum-crc32c",
+        "x-amz-checksum-sha1",
+        "x-amz-checksum-sha256",
+        "x-amz-sdk-checksum-algorithm",
+      ]),
+    });
     const normalizedDomain = publicDomain.replace(/\/+$/, "");
     const fileUrl = `${normalizedDomain}/${uniqueKey}`;
 
@@ -119,5 +129,37 @@ export class R2StorageService {
       key: uniqueKey,
       expiresIn,
     };
+  }
+
+  extractKeyFromUrl(url: string): string | null {
+    if (!url) return null;
+    const match = url.match(/(videos\/[^?#]+|resources\/[^?#]+)/);
+    return match ? match[1] : null;
+  }
+
+  async generatePresignedGetUrl(
+    keyOrUrl: string,
+    expiresIn = 900,
+  ): Promise<string> {
+    try {
+      const bucketName = this.configService.get<string>("R2_BUCKET_NAME");
+      if (!bucketName) return keyOrUrl;
+
+      const key = this.extractKeyFromUrl(keyOrUrl) || keyOrUrl;
+      if (!key.startsWith("videos/") && !key.startsWith("resources/")) {
+        return keyOrUrl;
+      }
+
+      const client = this.getS3Client();
+      const command = new GetObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+      });
+
+      return await getSignedUrl(client, command, { expiresIn });
+    } catch (err: any) {
+      this.logger.warn(`Failed to generate presigned GET URL: ${err.message}`);
+      return keyOrUrl;
+    }
   }
 }

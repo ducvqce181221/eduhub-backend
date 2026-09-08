@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString, Matches, MinLength } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString, Matches, MinLength } from "class-validator";
 
 export class ResetPasswordDto {
   @ApiProperty({
@@ -24,4 +24,14 @@ export class ResetPasswordDto {
       "Password must contain at least 1 uppercase letter, 1 lowercase letter, and 1 number",
   })
   newPassword!: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: "0.xxxxxxxx.token",
+    description: "Cloudflare Turnstile verification response token",
+  })
+  @IsOptional()
+  @IsString()
+  turnstileToken?: string;
 }

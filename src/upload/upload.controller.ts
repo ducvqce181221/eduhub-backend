@@ -24,6 +24,7 @@ import type { UploadableFile } from "./cloudinary.service";
 import { R2StorageService } from "./r2-storage.service";
 import { PresignedUrlDto } from "./dto/presigned-url.dto";
 import { CheckDuplicateDto } from "./dto/check-duplicate.dto";
+import { PreviewUrlDto } from "./dto/preview-url.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -176,5 +177,34 @@ export class UploadController {
       asset: existingAsset || null,
       existingAsset: existingAsset || null,
     };
+  }
+
+  @Post("preview-url")
+  @UseGuards(RateLimitGuard, JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @RateLimit(30, 60)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Generate presigned GET preview URL for uploaded video or resource",
+  })
+  @ApiBody({ type: PreviewUrlDto })
+  @ApiResponse({
+    status: 200,
+    description: "Presigned preview URL generated",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Missing url parameter",
+  })
+  async generatePreviewUrl(@Body() dto: PreviewUrlDto) {
+    if (!dto || !dto.url) {
+      throw new BadRequestException("Missing url parameter");
+    }
+    const previewUrl = await this.r2StorageService.generatePresignedGetUrl(
+      dto.url,
+      900,
+    );
+    return { previewUrl };
   }
 }

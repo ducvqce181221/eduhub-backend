@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsEmail, IsNotEmpty } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { Transform } from "class-transformer";
 
 export class ForgotPasswordDto {
@@ -14,4 +14,13 @@ export class ForgotPasswordDto {
   @IsEmail({}, { message: "Invalid email format" })
   @IsNotEmpty({ message: "Email is required" })
   email!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: "0.xxxxxxxx.token",
+    description: "Cloudflare Turnstile verification response token",
+  })
+  @IsOptional()
+  @IsString()
+  turnstileToken?: string;
 }

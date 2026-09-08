@@ -17,6 +17,7 @@ import { ProgressModule } from "./progress/progress.module";
 import { QuizzesModule } from "./quizzes/quizzes.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { MediaAssetsModule } from "./media-assets/media-assets.module";
+import { BannersModule } from "./banners/banners.module";
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { MediaAssetsModule } from "./media-assets/media-assets.module";
     ProgressModule,
     QuizzesModule,
     NotificationsModule,
+    BannersModule,
   ],
 })
 export class AppModule {}

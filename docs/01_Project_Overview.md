@@ -64,6 +64,10 @@ Online learning platforms need more than simple CRUD. They must organize hierarc
 - **Quiz Attempts & Score Calculation:** Atomic server-side grading and immediate result feedback.
 - **Notifications:** Asynchronous notification workflows via RabbitMQ (`course.enrolled`, `quiz.submitted`, system announcements).
 - **Course Discovery:** Search, category filtering, level filtering, sorting, pagination, and Redis caching for published courses.
+- **Guest Introductory Video Preview:** Prospective students can preview the introductory video lesson of published courses without enrollment; subsequent lesson videos and resources remain strictly masked.
+- **Banner & Promotion Management:** Admin-managed promotional banners for the Home carousel (strict 3:1 ratio, 1200x400) with live dimension checking and drag-and-drop reordering.
+- **Bot Defense (Cloudflare Turnstile):** Turnstile challenge verification on public authentication flows (`login`, `register`, `forgot-password`, `reset-password`).
+- **Bilingual & Adaptive Theme:** Full internationalization (English default with Vietnamese toggle) and adaptive Dark/Light mode design system.
 - **REST API Documentation:** Interactive docs with Swagger / OpenAPI.
 
 ### 6.2 Technical Scope

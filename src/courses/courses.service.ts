@@ -17,6 +17,7 @@ import { QueryCoursesDto } from "./dto/query-courses.dto";
 import { generateCourseSlug } from "../common/utils/slug.util";
 import { validateCoursePublish } from "./course-publish.validator";
 import { CourseStatus, EnrollmentStatus, Role } from "../generated/prisma/client";
+import { R2StorageService } from "../upload/r2-storage.service";
 
 @Injectable()
 export class CoursesService {
@@ -26,6 +27,9 @@ export class CoursesService {
     @Optional()
     @Inject(RedisCacheService)
     private readonly cacheService?: RedisCacheService,
+    @Optional()
+    @Inject(R2StorageService)
+    private readonly r2StorageService?: R2StorageService,
   ) {}
 
   private generateCacheKey(query: QueryCoursesDto): string {
@@ -272,35 +276,123 @@ export class CoursesService {
     }
 
     if (!canAccessContent) {
-      // Mask raw streaming videoUrl and downloadable fileUrl for un-enrolled / guest visitors
+      // Find the first video lesson in the course (lowest chapter order, lowest lesson order)
+      let previewLessonId: string | null = null;
+      let signedPreviewUrl: string | null = null;
+
+      for (const ch of course.chapters) {
+        for (const l of ch.lessons) {
+          if (l.video && l.video.videoUrl) {
+            previewLessonId = l.id;
+            if (this.r2StorageService && !l.video.isExternal) {
+              signedPreviewUrl = await this.r2StorageService.generatePresignedGetUrl(
+                l.video.videoUrl,
+                900,
+              );
+            } else {
+              signedPreviewUrl = l.video.videoUrl;
+            }
+            break;
+          }
+        }
+        if (previewLessonId) break;
+      }
+
+      // Mask raw streaming videoUrl and downloadable fileUrl for un-enrolled / guest visitors,
+      // EXCEPT for the single first video lesson which acts as the free preview [BR-CRS-PREVIEW]
       return {
         ...course,
+        previewLessonId,
         chapters: course.chapters.map((ch) => ({
           ...ch,
-          lessons: ch.lessons.map((l) => ({
-            ...l,
-            video: l.video
-              ? {
-                  id: l.video.id,
-                  lessonId: l.video.lessonId,
-                  durationSeconds: l.video.durationSeconds,
-                  title: l.video.title,
-                }
-              : null,
-            resources: l.resources.map((r) => ({
-              id: r.id,
-              lessonId: r.lessonId,
-              name: r.name,
-              fileType: r.fileType,
-              fileSize: r.fileSize,
-              isExternal: r.isExternal,
-            })),
-          })),
+          lessons: ch.lessons.map((l) => {
+            const isPreview = l.id === previewLessonId;
+            return {
+              ...l,
+              video: l.video
+                ? {
+                    id: l.video.id,
+                    lessonId: l.video.lessonId,
+                    durationSeconds: l.video.durationSeconds,
+                    title: l.video.title,
+                    isPreview,
+                    videoUrl: undefined,
+                    playbackUrl: isPreview ? (signedPreviewUrl || undefined) : undefined,
+                  }
+
+                : null,
+              resources: l.resources.map((r) => ({
+                id: r.id,
+                lessonId: r.lessonId,
+                name: r.name,
+                fileType: r.fileType,
+                fileSize: r.fileSize,
+                isExternal: r.isExternal,
+              })),
+            };
+          }),
         })),
       };
     }
 
     return course;
+  }
+
+  async getPreviewVideo(id: string) {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      );
+
+    const course = await this.prisma.course.findUnique({
+      where: isUuid ? { id } : { slug: id },
+      include: {
+        chapters: {
+          orderBy: { order: "asc" },
+          include: {
+            lessons: {
+              orderBy: { order: "asc" },
+              include: { video: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException("Course not found");
+    }
+
+    if (course.status !== CourseStatus.PUBLISHED) {
+      throw new ForbiddenException("Cannot preview unpublished course");
+    }
+
+    for (const ch of course.chapters) {
+      for (const l of ch.lessons) {
+        if (l.video && l.video.videoUrl) {
+          let videoUrl = l.video.videoUrl;
+          if (this.r2StorageService && !l.video.isExternal) {
+            videoUrl = await this.r2StorageService.generatePresignedGetUrl(
+              l.video.videoUrl,
+              900,
+            );
+          }
+          return {
+            courseId: course.id,
+            courseTitle: course.title,
+            courseSlug: course.slug,
+            lessonId: l.id,
+            lessonTitle: l.title,
+            videoUrl,
+            previewUrl: videoUrl,
+            durationSeconds: l.video.durationSeconds,
+            isPreview: true,
+          };
+        }
+      }
+    }
+
+    throw new NotFoundException("No preview video available for this course");
   }
 
   async update(id: string, dto: UpdateCourseDto) {

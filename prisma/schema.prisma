@@ -323,3 +323,17 @@ model Notification {
   @@index([userId, isRead, createdAt])
   @@map("notifications")
 }
+
+model Banner {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String   @db.VarChar(200)
+  imageUrl  String   @map("image_url") @db.VarChar(500)
+  linkUrl   String?  @map("link_url") @db.VarChar(500)
+  order     Int      @default(0)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, order])
+  @@map("banners")
+}

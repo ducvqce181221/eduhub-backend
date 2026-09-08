@@ -16,6 +16,7 @@ import { ProgressModule } from "../src/progress/progress.module";
 import { QuizzesModule } from "../src/quizzes/quizzes.module";
 import { NotificationsModule } from "../src/notifications/notifications.module";
 import { UploadModule } from "../src/upload/upload.module";
+import { BannersModule } from "../src/banners/banners.module";
 
 describe("Phase 10 - Cụm 3: OpenAPI / Swagger Documentation Verification", () => {
   let app: INestApplication;
@@ -38,6 +39,7 @@ describe("Phase 10 - Cụm 3: OpenAPI / Swagger Documentation Verification", () 
         QuizzesModule,
         NotificationsModule,
         UploadModule,
+        BannersModule,
       ],
     }).compile();
 

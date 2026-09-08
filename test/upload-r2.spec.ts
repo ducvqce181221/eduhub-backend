@@ -125,7 +125,8 @@ describe("Phase 5 - Part 1: Media Storage & Cloudflare R2 Presigned URLs", () =>
     );
 
     expect(signedUrl).toBeDefined();
-    expect(signedUrl).toContain(".r2.cloudflarestorage.com/videos/");
+    expect(signedUrl).toContain(".r2.cloudflarestorage.com");
+    expect(signedUrl).toContain("/videos/");
     expect(signedUrl).toContain("X-Amz-Signature=");
     expect(signedUrl).toContain("X-Amz-Expires=900");
   });

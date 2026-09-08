@@ -53,4 +53,13 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   role?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: "0.xxxxxxxx.token",
+    description: "Cloudflare Turnstile verification response token",
+  })
+  @IsOptional()
+  @IsString()
+  turnstileToken?: string;
 }

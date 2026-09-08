@@ -18,6 +18,7 @@
 | **FR-A08** | View profile | Retrieve current authenticated user profile. | All |
 | **FR-A09** | Update profile | Update allowed personal information (full name, avatar URL). | All |
 | **FR-A10** | Avatar | Update/remove user profile avatar URL. | All |
+| **FR-A11** | Bot Challenge | Validate Cloudflare Turnstile token on public auth requests (`login`, `register`, `forgot-password`, `reset-password`). | Public |
 
 ## 2. User Management (Admin)
 
@@ -59,6 +60,7 @@
 | **FR-CO12** | Manage video | Attach or update video metadata (URL, duration in seconds) for a lesson. Mandatory before publishing. | Teacher(owner), Admin |
 | **FR-CO13** | Manage resources | Add/update/delete zero or many downloadable/reference resources per lesson (integer `fileSize`). | Teacher(owner), Admin |
 | **FR-CO14** | View owned courses | View all courses owned by current teacher across all statuses (`DRAFT`, `PUBLISHED`, `ARCHIVED`). | Teacher, Admin |
+| **FR-CO15** | Guest video preview | Allow unauthenticated guests to stream the introductory video lesson of a published course (`isPreview = true`). All other lesson videos/resources remain strictly masked. | Public |
 
 ## 5. Enrollment & Progress
 
@@ -102,8 +104,18 @@
 | **FR-M01** | Upload Image | Upload and auto-optimize image assets (avatars, course thumbnails) via Cloudinary SDK. | All authenticated / Teacher / Admin |
 | **FR-M02** | Presigned S3 Upload URL | Generate temporary S3 Presigned PUT URLs for direct client upload of lesson videos and downloadable resources to Cloudflare R2. | Teacher(owner), Admin |
 | **FR-M03** | Media validation | Validate file mime-types and size limits on upload and presigned URL generation (e.g. max 5MB for images, max 200MB for lesson videos, max 50MB for resources). | System |
+| **FR-M04** | Presigned preview URL | Generate temporary S3 Presigned GET URLs for uploaded video/resource preview without altering storage or requiring re-upload. | Teacher(owner), Admin |
 
-## 9. Non-functional / Technical Requirements
+## 9. Banners & Promotion (Homepage Carousel)
+
+| ID | Feature | Description | Roles |
+| :--- | :--- | :--- | :--- |
+| **FR-B01** | List active banners | Fetch active promotional banners ordered by `order ASC` for homepage 3:1 banner carousel. Cached in Redis. | Public |
+| **FR-B02** | Manage banners | CRUD operations for promotional banners (`title`, `imageUrl`, `linkUrl`, `order`, `isActive`). | Admin |
+| **FR-B03** | Batch reorder banners | Batch update banner display sequence (`{ orders: [{ id, order }] }`) atomically with cache invalidation. | Admin |
+| **FR-B04** | Banner dimension validation | UI validates uploaded banner images strictly against 3:1 aspect ratio (recommended 1200x400 px) with live preview and replacement. | Admin |
+
+## 10. Non-functional / Technical Requirements
 - Validate all incoming request DTOs using `class-validator` and `ValidationPipe` with whitelist and transform enabled.
 - Wrap all responses in standard envelopes (`{ success: true, data, meta }` for success; `{ success: false, statusCode, message, error, timestamp, path }` for errors).
 - Protect authenticated endpoints with JWT access tokens; verify refresh tokens via secure rotation.
@@ -115,7 +127,7 @@
 - Document every REST endpoint with Swagger annotations and accurate schema models.
 - Implement unit and integration tests per phase (Auth, RBAC, Progress, Quiz, RabbitMQ) before moving to subsequent phases.
 
-## 10. Deployment / Operational Requirements
+## 11. Deployment / Operational Requirements
 - Environment configuration via `.env` files supporting local development, managed cloud, and Oracle Cloud Free VPS.
 - Health-check endpoint (`GET /api/v1/health`) for liveness/readiness probes (PostgreSQL, Redis, RabbitMQ connectivity).
 - Never commit secrets or sensitive credentials into source control.

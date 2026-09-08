@@ -84,6 +84,28 @@ export class CoursesController {
     );
   }
 
+  @Get(":id/preview-video")
+  @ApiOperation({
+    summary:
+      "Get free preview video for course's first video lesson (Public for guests)",
+  })
+  @ApiParam({ name: "id", type: String, description: "Course UUID or slug" })
+  @ApiResponse({
+    status: 200,
+    description: "Course preview video details and streamable URL",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Course is unpublished",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Course not found or no preview video available",
+  })
+  async getPreviewVideo(@Param("id") id: string) {
+    return this.coursesService.getPreviewVideo(id);
+  }
+
   @Patch(":id")
   @UseGuards(JwtAuthGuard, RolesGuard, CourseOwnershipGuard)
   @Roles(Role.TEACHER, Role.ADMIN)

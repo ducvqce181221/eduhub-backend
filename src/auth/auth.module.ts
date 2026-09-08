@@ -13,6 +13,7 @@ import { CourseOwnershipGuard } from "./guards/course-ownership.guard";
 import { RateLimitGuard } from "./guards/rate-limit.guard";
 import { GoogleAuthGuard } from "./guards/google-auth.guard";
 import { GoogleStrategy } from "./strategies/google.strategy";
+import { TurnstileService } from "./turnstile.service";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { GoogleStrategy } from "./strategies/google.strategy";
     AuthService,
     PasswordService,
     TokenService,
+    TurnstileService,
     JwtAuthGuard,
     OptionalJwtAuthGuard,
     RolesGuard,
@@ -37,6 +39,7 @@ import { GoogleStrategy } from "./strategies/google.strategy";
     AuthService,
     PasswordService,
     TokenService,
+    TurnstileService,
     JwtAuthGuard,
     OptionalJwtAuthGuard,
     RolesGuard,

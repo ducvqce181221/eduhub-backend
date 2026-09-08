@@ -72,12 +72,12 @@
 
 | Method | Endpoint | Purpose | Auth / Role |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/auth/register` | Register student account (Student only) | Public |
-| `POST` | `/auth/login` | Login with email/password; returns access & refresh tokens | Public |
+| `POST` | `/auth/register` | Register student account (Student only, supports optional `turnstileToken`) | Public |
+| `POST` | `/auth/login` | Login with email/password; returns access & refresh tokens (supports optional `turnstileToken`) | Public |
 | `POST` | `/auth/refresh` | Issue new access token via refresh token | Refresh Token |
 | `POST` | `/auth/logout` | Invalidate active refresh token | JWT Authenticated |
-| `POST` | `/auth/forgot-password` | Request password reset token | Public |
-| `POST` | `/auth/reset-password` | Set new password using reset token | Public |
+| `POST` | `/auth/forgot-password` | Request password reset token (supports optional `turnstileToken`) | Public |
+| `POST` | `/auth/reset-password` | Set new password using reset token (supports optional `turnstileToken`) | Public |
 | `POST` | `/auth/change-password` | Change current password | JWT Authenticated |
 | `GET` | `/auth/me` | Retrieve authenticated user profile | JWT Authenticated |
 | `PATCH`| `/auth/me` | Update personal profile information | JWT Authenticated |
@@ -109,7 +109,8 @@
 | `GET` | `/courses` | Search, filter, paginate published courses (Cached in Redis) | Public / Authenticated |
 | `GET` | `/me/courses` | List all courses owned by current teacher across all statuses (`DRAFT`, `PUBLISHED`, `ARCHIVED`) | Teacher / Admin |
 | `POST` | `/courses` | Create a new draft course (auto-generates unique slug: `slugify(title)-nanoid(6)`; `description` optional) | Teacher / Admin |
-| `GET` | `/courses/:id` | View course details (drafts restricted to owner/admin) | Public / Authenticated |
+| `GET` | `/courses/:id` | View course details (drafts restricted to owner/admin; for guests, first video lesson has `isPreview = true` and `playbackUrl`) | Public / Authenticated |
+| `GET` | `/courses/:id/preview-video` | Retrieve presigned streaming URL for introductory video lesson | Public |
 | `PATCH`| `/courses/:id` | Update course metadata | Owner / Admin |
 | `PATCH`| `/courses/:id/archive`| Archive course (Status $\rightarrow$ `ARCHIVED`; allowed from `DRAFT` or `PUBLISHED`) | Owner / Admin |
 | `PATCH`| `/courses/:id/publish`| Publish course (Validates Publish-Ready Checklist; returns `422` if incomplete) | Owner / Admin |
@@ -174,6 +175,18 @@
 | :--- | :--- | :--- | :--- |
 | `POST` | `/upload/image` | Upload image (Avatar / Thumbnail) to Cloudinary; returns optimized URLs | JWT Authenticated |
 | `POST` | `/upload/presigned-url` | Mint S3 Presigned PUT URL for client direct upload to Cloudflare R2 (`videos`, `resources`) | Teacher / Admin |
+| `POST` | `/upload/preview-url` | Mint S3 Presigned GET URL for temporary preview playback of uploaded video/resource | Teacher / Admin |
+
+### 2.10 Banners & Promotion (Homepage Carousel)
+
+| Method | Endpoint | Purpose | Auth / Role |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/banners` | List active banners ordered by `order ASC` (Cached in Redis) | Public |
+| `GET` | `/admin/banners` | List all banners across active/inactive states for administration | Admin |
+| `POST` | `/admin/banners` | Create a new promotional banner (`title`, `imageUrl`, `linkUrl`, `order`, `isActive`) | Admin |
+| `PATCH`| `/admin/banners/reorder` | Batch reorder banners (`{ orders: [{ id, order }] }`) | Admin |
+| `PATCH`| `/admin/banners/:id` | Update banner details or toggle active status | Admin |
+| `DELETE`| `/admin/banners/:id` | Delete promotional banner | Admin |
 
 ---
 

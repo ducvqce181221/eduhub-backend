@@ -37,6 +37,7 @@ import { GoogleAuthDto } from "./dto/google-auth.dto";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { RateLimit } from "./decorators/rate-limit.decorator";
 import type { AuthenticatedUser } from "./guards/jwt-auth.guard";
+import { TurnstileService } from "./turnstile.service";
 
 const REFRESH_COOKIE_NAME = "refreshToken";
 const COOKIE_OPTIONS = {
@@ -56,6 +57,8 @@ export class AuthController {
     @Optional()
     @Inject(ConfigService)
     private readonly configService?: ConfigService,
+    @Inject(TurnstileService)
+    private readonly turnstileService?: TurnstileService,
   ) {}
 
   @Post("register")
@@ -75,7 +78,10 @@ export class AuthController {
     status: 409,
     description: "Email already exists",
   })
-  async register(@Body() dto: RegisterDto) {
+  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+    if (this.turnstileService) {
+      await this.turnstileService.verifyToken(dto.turnstileToken, req?.ip, "signup");
+    }
     return this.authService.register(dto);
   }
 
@@ -96,7 +102,11 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
   ) {
+    if (this.turnstileService) {
+      await this.turnstileService.verifyToken(dto.turnstileToken, req?.ip, "login");
+    }
     const result = await this.authService.login(dto);
     res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
     return result;
@@ -314,7 +324,10 @@ export class AuthController {
     status: 200,
     description: "Password reset instructions sent",
   })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    if (this.turnstileService) {
+      await this.turnstileService.verifyToken(dto.turnstileToken, req?.ip, "forgot_password");
+    }
     return this.authService.forgotPassword(dto);
   }
 
@@ -336,7 +349,10 @@ export class AuthController {
     status: 401,
     description: "Invalid or expired reset token",
   })
-  async resetPassword(@Body() dto: ResetPasswordDto) {
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    if (this.turnstileService) {
+      await this.turnstileService.verifyToken(dto.turnstileToken, req?.ip, "reset_password");
+    }
     return this.authService.resetPassword(dto);
   }
 }

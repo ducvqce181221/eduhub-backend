@@ -95,6 +95,9 @@ importers:
       swagger-ui-express:
         specifier: ^5.0.1
         version: 5.0.1(express@5.2.1)
+      tsx:
+        specifier: ^4.22.4
+        version: 4.23.12
     devDependencies:
       '@nestjs/testing':
         specifier: 11.1.27
@@ -141,9 +144,6 @@ importers:
       supertest:
         specifier: ^7.2.2
         version: 7.2.2
-      tsx:
-        specifier: ^4.22.4
-        version: 4.23.12
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

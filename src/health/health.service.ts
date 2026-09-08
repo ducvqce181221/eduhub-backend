@@ -55,18 +55,34 @@ export class HealthService {
   }
 
   private async checkRedis(): Promise<"connected" | "disconnected"> {
-    const host = this.configService.get<string>("REDIS_HOST", "localhost");
-    const port = Number(this.configService.get<number>("REDIS_PORT", 6379));
-    const password = this.configService.get<string>("REDIS_PASSWORD", "");
+    const redisUrl =
+      this.configService.get<string>("REDIS_URL") ||
+      process.env.REDIS_URL ||
+      "";
 
-    const client = new Redis({
-      host,
-      port,
-      password: password || undefined,
-      connectTimeout: 2000,
-      maxRetriesPerRequest: 1,
-      lazyConnect: true,
-    });
+    let client: Redis;
+    if (redisUrl && redisUrl.trim().length > 0) {
+      const isTls = redisUrl.startsWith("rediss://");
+      client = new Redis(redisUrl, {
+        connectTimeout: 2000,
+        maxRetriesPerRequest: 1,
+        lazyConnect: true,
+        tls: isTls ? { rejectUnauthorized: false } : undefined,
+      });
+    } else {
+      const host = this.configService.get<string>("REDIS_HOST", "localhost");
+      const port = Number(this.configService.get<number>("REDIS_PORT", 6379));
+      const password = this.configService.get<string>("REDIS_PASSWORD", "");
+
+      client = new Redis({
+        host,
+        port,
+        password: password || undefined,
+        connectTimeout: 2000,
+        maxRetriesPerRequest: 1,
+        lazyConnect: true,
+      });
+    }
 
     try {
       await client.connect();

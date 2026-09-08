@@ -22,18 +22,33 @@ export class RedisCacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   private initClient() {
-    const host = this.configService?.get<string>("REDIS_HOST", "localhost") || "localhost";
-    const port = Number(this.configService?.get<number>("REDIS_PORT", 6379)) || 6379;
-    const password = this.configService?.get<string>("REDIS_PASSWORD", "") || undefined;
+    const redisUrl =
+      this.configService?.get<string>("REDIS_URL") ||
+      process.env.REDIS_URL ||
+      "";
 
-    this.client = new Redis({
-      host,
-      port,
-      password: password || undefined,
-      lazyConnect: false,
-      connectTimeout: 5000,
-      maxRetriesPerRequest: 2,
-    });
+    if (redisUrl && redisUrl.trim().length > 0) {
+      const isTls = redisUrl.startsWith("rediss://");
+      this.client = new Redis(redisUrl, {
+        lazyConnect: false,
+        connectTimeout: 5000,
+        maxRetriesPerRequest: 2,
+        tls: isTls ? { rejectUnauthorized: false } : undefined,
+      });
+    } else {
+      const host = this.configService?.get<string>("REDIS_HOST", "localhost") || "localhost";
+      const port = Number(this.configService?.get<number>("REDIS_PORT", 6379)) || 6379;
+      const password = this.configService?.get<string>("REDIS_PASSWORD", "") || undefined;
+
+      this.client = new Redis({
+        host,
+        port,
+        password: password || undefined,
+        lazyConnect: false,
+        connectTimeout: 5000,
+        maxRetriesPerRequest: 2,
+      });
+    }
 
     this.client.on("error", (err) => {
       this.logger.warn(`Redis connection warning/error: ${err.message}`);

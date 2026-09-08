@@ -34,12 +34,25 @@ export class TurnstileService {
       }
     }
 
+    // Check if Turnstile is explicitly disabled via ENABLE_TURNSTILE=false
+    const isTurnstileEnabled =
+      (this.configService?.get<string>("ENABLE_TURNSTILE") ??
+        process.env.ENABLE_TURNSTILE ??
+        "true").toLowerCase() !== "false";
+
+    if (!isTurnstileEnabled) {
+      this.logger.warn(
+        "Cloudflare Turnstile verification is disabled by ENABLE_TURNSTILE=false.",
+      );
+      return true;
+    }
+
     // In dev environment when no secret key configured: allow with warning
     if (!secretKey) {
       if (process.env.NODE_ENV === "production") {
         this.logger.error("TURNSTILE_SECRET_KEY is missing in production environment!");
         throw new BadRequestException(
-          "Security configuration error. CAPTCHA verification unavailable.",
+          "Security configuration error. CAPTCHA verification unavailable. Please provide TURNSTILE_SECRET_KEY or set ENABLE_TURNSTILE=false.",
         );
       }
       this.logger.warn(

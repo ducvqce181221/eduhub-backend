@@ -16,6 +16,7 @@
 - RESTful resource-oriented URLs.
 - Bearer JWT authentication for protected endpoints.
 - Strict DTO validation with NestJS `ValidationPipe` (`whitelist: true`, `forbidNonWhitelisted: true`, `transform: true`).
+- Multi-language locale negotiation via standard `Accept-Language: en | vi` request header.
 - Swagger/OpenAPI documentation auto-generated at `/api/docs`.
 
 ### 1.1 Standard Response Formats

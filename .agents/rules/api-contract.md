@@ -13,3 +13,5 @@ Every controller must:
   - `409 Conflict` is reserved for unique constraint collisions (email, slug, category deletion with attached courses).
 - Apply `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })` globally.
 - Provide comprehensive Swagger decorators for every route (request/response schemas, status codes).
+- **Explicit OpenAPI Typing:** Because the dev engine runs on `tsx` (esbuild), always explicitly provide `type`, `example`, and `description` in `@ApiProperty({ type: String, ... })` and use `@ApiBody({ type: TargetDto })` on controller mutation endpoints to guarantee 100% reliable OpenAPI schema generation.
+- **Defensive Service Validation:** Service methods must validate input payload presence and throw `BadRequestException` on missing/null bodies.

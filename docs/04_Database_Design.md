@@ -7,7 +7,7 @@
 ## 1. Database Strategy
 PostgreSQL is the sole primary database in the project. Prisma ORM v7 with `@prisma/adapter-pg` driver adapter is used for declarative schema modeling (`schema.prisma`), configuration via `prisma.config.ts`, automated SQL migrations (`pnpm run db:migrate`), type-safe client generation into `src/generated/prisma`, relations, and transactional integrity.
 
-## 2. Entity / Model Overview (15 Models, 5 Enums)
+## 2. Entity / Model Overview (16 Models, 5 Enums)
 
 | Model | Purpose |
 | :--- | :--- |
@@ -26,6 +26,8 @@ PostgreSQL is the sole primary database in the project. Prisma ORM v7 with `@pri
 | **QuizAttempt** | Student submission result for a quiz (`Score` float percentage, `IsPassed`, `StartedAt`, `SubmittedAt`). |
 | **QuizAttemptAnswer** | Records individual question and chosen answer per attempt. |
 | **Notification** | User-specific asynchronous notifications (`IsRead`, `Type` enum, `Title`, `Message`). |
+| **Banner** | Promotional banners displayed on the Home carousel (`Title`, `ImageUrl`, `LinkUrl`, `Order`, `IsActive`). |
+
 
 ## 3. Relationships & Cardinality
 
@@ -380,7 +382,22 @@ model Notification {
   @@index([userId, isRead, createdAt])
   @@map("notifications")
 }
+
+model Banner {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String   @db.VarChar(200)
+  imageUrl  String   @map("image_url") @db.Text
+  linkUrl   String?  @map("link_url") @db.Text
+  order     Int      @default(0)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, order])
+  @@map("banners")
+}
 ```
+
 
 ## 5. Learning Progress Model & Watch Threshold
 1. **Watch Threshold Rule:** A video is considered watched when:

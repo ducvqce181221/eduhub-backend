@@ -29,7 +29,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../generated/prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
+import { MediaAssetsService } from "../media-assets/media-assets.service";
 import { RateLimitGuard } from "../auth/guards/rate-limit.guard";
 import { RateLimit } from "../auth/decorators/rate-limit.decorator";
 
@@ -41,8 +41,8 @@ export class UploadController {
     private readonly cloudinaryService: CloudinaryService,
     @Inject(R2StorageService)
     private readonly r2StorageService: R2StorageService,
-    @Inject(PrismaService)
-    private readonly prisma: PrismaService,
+    @Inject(MediaAssetsService)
+    private readonly mediaAssetsService: MediaAssetsService,
   ) {}
 
   @Post("image")
@@ -156,27 +156,7 @@ export class UploadController {
   })
   async checkDuplicate(@Body() dto: CheckDuplicateDto, @Req() req: Request) {
     const user = req.user as { id: string; role: Role };
-
-    const where: any = {
-      contentHash: dto.hash.toLowerCase().trim(),
-      mediaType: dto.mediaType,
-    };
-
-    // Teachers search within their own library; Admins search platform-wide
-    if (user.role !== Role.ADMIN) {
-      where.uploaderId = user.id;
-    }
-
-    const existingAsset = await this.prisma.mediaAsset.findFirst({
-      where,
-      orderBy: { createdAt: "desc" },
-    });
-
-    return {
-      isDuplicate: !!existingAsset,
-      asset: existingAsset || null,
-      existingAsset: existingAsset || null,
-    };
+    return this.mediaAssetsService.checkDuplicate(dto, user);
   }
 
   @Post("preview-url")

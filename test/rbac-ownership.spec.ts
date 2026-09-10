@@ -284,6 +284,28 @@ describe("Phase 4 - Part 1: Authorization (RBAC & Course Ownership Guards)", () 
       expect(await ownershipGuard.canActivate(contextB)).toBe(true);
     });
 
+    it("should deny Student with 403 Forbidden when trying to access CourseOwnershipGuard", async () => {
+      const context = createMockContext(
+        { id: studentId, email: "student@eduhub.dev", role: "STUDENT" },
+        { courseId: courseAId },
+      );
+
+      await expect(ownershipGuard.canActivate(context)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it("should deny Unauthenticated user with 403 Forbidden on CourseOwnershipGuard", async () => {
+      const context = createMockContext(
+        undefined,
+        { courseId: courseAId },
+      );
+
+      await expect(ownershipGuard.canActivate(context)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
     it("should return 404 Not Found when courseId does not exist", async () => {
       const nonExistentCourseId = "00000000-0000-0000-0000-000000000000";
 
@@ -298,3 +320,4 @@ describe("Phase 4 - Part 1: Authorization (RBAC & Course Ownership Guards)", () 
     });
   });
 });
+

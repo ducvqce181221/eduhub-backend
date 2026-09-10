@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
-import { createPrismaClient } from "../src/lib/prisma";
-import type { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaService } from "../src/prisma/prisma.service";
 import { Role, MediaType, AssetSource } from "../src/generated/prisma/client";
 import { MediaAssetsService } from "../src/media-assets/media-assets.service";
 import { ResourcesService } from "../src/lessons/resources.service";
@@ -13,7 +12,7 @@ import {
 } from "../src/common/utils/url-validator.util";
 
 describe("Media Assets Library, Deduplication & External URLs", () => {
-  let prisma: PrismaClient;
+  let prisma: PrismaService;
   let mediaAssetsService: MediaAssetsService;
   let resourcesService: ResourcesService;
   let lessonsService: LessonsService;
@@ -29,13 +28,13 @@ describe("Media Assets Library, Deduplication & External URLs", () => {
   const timestamp = Date.now();
 
   beforeAll(async () => {
-    prisma = createPrismaClient();
+    prisma = new PrismaService();
     await prisma.$connect();
 
     mediaAssetsService = new MediaAssetsService(prisma);
     resourcesService = new ResourcesService(prisma);
     lessonsService = new LessonsService(prisma);
-    uploadController = new UploadController({} as any, {} as any, prisma);
+    uploadController = new UploadController({} as any, {} as any, mediaAssetsService);
 
     // Create Teacher 1
     const t1 = await prisma.user.create({

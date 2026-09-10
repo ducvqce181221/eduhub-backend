@@ -7,7 +7,8 @@ import { PrismaService } from "../src/prisma/prisma.service";
 import { RedisCacheModule } from "../src/common/cache/redis-cache.module";
 import { EventsModule } from "../src/common/events/events.module";
 import { EventPublisherService } from "../src/common/events/event-publisher.service";
-import { NotificationConsumer } from "../src/common/events/notification.consumer";
+import { NotificationsModule } from "../src/notifications/notifications.module";
+import { NotificationConsumer } from "../src/notifications/notification.consumer";
 import { EnrollmentsService } from "../src/enrollments/enrollments.service";
 import { QuizzesService } from "../src/quizzes/quizzes.service";
 import { ProgressService } from "../src/progress/progress.service";
@@ -70,6 +71,7 @@ describe("Phase 9 - Cụm 3: Domain Event Triggers Integration Tests (BR-NTF-01,
         PrismaModule,
         RedisCacheModule,
         EventsModule,
+        NotificationsModule,
       ],
       providers: [
         EnrollmentsService,

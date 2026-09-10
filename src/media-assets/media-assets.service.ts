@@ -10,6 +10,7 @@ import { QueryMediaAssetsDto } from "./dto/query-media-assets.dto";
 import { CreateExternalAssetDto } from "./dto/create-external-asset.dto";
 import { AssetSource, Role } from "../generated/prisma/client";
 import { validateAndInspectExternalUrl } from "../common/utils/url-validator.util";
+import { CheckDuplicateDto } from "../upload/dto/check-duplicate.dto";
 
 @Injectable()
 export class MediaAssetsService {
@@ -144,5 +145,30 @@ export class MediaAssetsService {
     });
 
     return { message: "Media asset deleted successfully from library" };
+  }
+
+  async checkDuplicate(
+    dto: CheckDuplicateDto,
+    user: { id: string; role: Role },
+  ) {
+    const where: any = {
+      contentHash: dto.hash.toLowerCase().trim(),
+      mediaType: dto.mediaType,
+    };
+
+    // Teachers search within their own library; Admins search platform-wide
+    if (user.role !== Role.ADMIN) {
+      where.uploaderId = user.id;
+    }
+
+    const existingAsset = await this.prisma.mediaAsset.findFirst({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return {
+      isDuplicate: !!existingAsset,
+      asset: existingAsset || null,
+    };
   }
 }

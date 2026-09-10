@@ -6,7 +6,7 @@ import { PrismaModule } from "../src/prisma/prisma.module";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { EventsModule } from "../src/common/events/events.module";
 import { EventPublisherService } from "../src/common/events/event-publisher.service";
-import { NotificationConsumer } from "../src/common/events/notification.consumer";
+import { NotificationConsumer } from "../src/notifications/notification.consumer";
 import { EVENTS_CONSTANTS } from "../src/common/events/events.constants";
 import { NotificationType, Role } from "../src/generated/prisma/client";
 

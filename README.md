@@ -31,7 +31,7 @@ The enterprise-grade RESTful API powering the **EduHub** Learning Management Sys
 | **Async Message Broker** | RabbitMQ 3 (`amqplib`) | Event publisher & consumer worker with Dead-Letter Queue (DLQ) support |
 | **Object Storage** | Cloudflare R2 (`@aws-sdk/client-s3`) | S3-compatible storage with direct binary presigned URLs for lesson videos & resources |
 | **Media CDN** | Cloudinary | High-performance image storage & transformations for course thumbnails and avatars |
-| **Authentication** | JWT + Passport + Google OAuth2 | Dual-token auth (Access + Refresh tokens with cookie-parser), CASL RBAC |
+| **Authentication** | JWT + Passport + Google OAuth2 | Dual-token auth (Access + Refresh tokens with cookie-parser), RBAC & granular ownership guards |
 | **Bot Protection** | Cloudflare Turnstile | Server-side siteverify verification on public auth endpoints |
 | **Testing Engine** | Vitest 4 + Supertest | Blazing fast unit and integration testing suite across all domains |
 
@@ -56,7 +56,6 @@ The enterprise-grade RESTful API powering the **EduHub** Learning Management Sys
 src/
 ├── auth/           # Authentication, JWT, Google OAuth2, Turnstile verification
 ├── banners/        # Promo banner management, order ranking, Redis cache
-├── casl/           # CASL ability factory for fine-grained authorization
 ├── categories/     # Category CRUD with referential-constraint protection
 ├── chapters/       # Chapter management, batch reordering in transactions
 ├── common/         # Global filters, interceptors, decorators, guards
@@ -197,7 +196,7 @@ All seeded accounts share the default password: **`Password123!`**
 
 ## 🧪 Testing
 
-The test suite contains **38 comprehensive test specifications** covering unit logic, business rules (BR-XXX-NN), relational integrity, and integration flows:
+The test suite contains **36 comprehensive test specifications** (325 automated tests) covering unit logic, business rules (BR-XXX-NN), relational integrity, and integration flows:
 
 ```bash
 # Run all unit and integration tests (requires docker services running)

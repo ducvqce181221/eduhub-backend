@@ -3,27 +3,16 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
-  Optional,
 } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { CaslAbilityFactory } from "../../casl/casl-ability.factory";
-import { Action } from "../../casl/casl.types";
-import { subject } from "@casl/ability";
 
 @Injectable()
 export class CourseOwnershipGuard implements CanActivate {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
-    @Optional()
-    @Inject(CaslAbilityFactory)
-    private readonly caslAbilityFactory: CaslAbilityFactory = new CaslAbilityFactory(),
-  ) {
-    if (!this.caslAbilityFactory) {
-      this.caslAbilityFactory = new CaslAbilityFactory();
-    }
-  }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -41,7 +30,6 @@ export class CourseOwnershipGuard implements CanActivate {
     const params = request.params || {};
     const path: string = request.route?.path || request.url || "";
 
-    let teacherId: string | null = null;
     let resolvedCourse: { id: string; teacherId: string } | null = null;
 
     if (params.courseId) {
@@ -50,7 +38,6 @@ export class CourseOwnershipGuard implements CanActivate {
         select: { id: true, teacherId: true },
       });
       if (!course) throw new NotFoundException("Course not found");
-      teacherId = course.teacherId;
       resolvedCourse = course;
     } else if (params.chapterId) {
       const chapter = await this.prisma.chapter.findUnique({
@@ -61,7 +48,6 @@ export class CourseOwnershipGuard implements CanActivate {
         },
       });
       if (!chapter) throw new NotFoundException("Chapter not found");
-      teacherId = chapter.course.teacherId;
       resolvedCourse = chapter.course;
     } else if (params.lessonId) {
       const lesson = await this.prisma.lesson.findUnique({
@@ -74,7 +60,6 @@ export class CourseOwnershipGuard implements CanActivate {
         },
       });
       if (!lesson) throw new NotFoundException("Lesson not found");
-      teacherId = lesson.chapter.course.teacherId;
       resolvedCourse = lesson.chapter.course;
     } else if (params.quizId) {
       const quiz = await this.prisma.quiz.findUnique({
@@ -91,7 +76,6 @@ export class CourseOwnershipGuard implements CanActivate {
         },
       });
       if (!quiz) throw new NotFoundException("Quiz not found");
-      teacherId = quiz.lesson.chapter.course.teacherId;
       resolvedCourse = quiz.lesson.chapter.course;
     } else if (params.id) {
       // Determine entity type based on route path
@@ -104,7 +88,6 @@ export class CourseOwnershipGuard implements CanActivate {
           },
         });
         if (!chapter) throw new NotFoundException("Chapter not found");
-        teacherId = chapter.course.teacherId;
         resolvedCourse = chapter.course;
       } else if (path.includes("/lessons")) {
         const lesson = await this.prisma.lesson.findUnique({
@@ -117,7 +100,6 @@ export class CourseOwnershipGuard implements CanActivate {
           },
         });
         if (!lesson) throw new NotFoundException("Lesson not found");
-        teacherId = lesson.chapter.course.teacherId;
         resolvedCourse = lesson.chapter.course;
       } else if (path.includes("/resources")) {
         const resource = await this.prisma.resource.findUnique({
@@ -134,7 +116,6 @@ export class CourseOwnershipGuard implements CanActivate {
           },
         });
         if (!resource) throw new NotFoundException("Resource not found");
-        teacherId = resource.lesson.chapter.course.teacherId;
         resolvedCourse = resource.lesson.chapter.course;
       } else if (path.includes("/quizzes")) {
         const quiz = await this.prisma.quiz.findUnique({
@@ -151,7 +132,6 @@ export class CourseOwnershipGuard implements CanActivate {
           },
         });
         if (!quiz) throw new NotFoundException("Quiz not found");
-        teacherId = quiz.lesson.chapter.course.teacherId;
         resolvedCourse = quiz.lesson.chapter.course;
       } else if (path.includes("/questions")) {
         const question = await this.prisma.question.findUnique({
@@ -172,7 +152,6 @@ export class CourseOwnershipGuard implements CanActivate {
           },
         });
         if (!question) throw new NotFoundException("Question not found");
-        teacherId = question.quiz.lesson.chapter.course.teacherId;
         resolvedCourse = question.quiz.lesson.chapter.course;
       } else {
         // Default to course id
@@ -181,18 +160,12 @@ export class CourseOwnershipGuard implements CanActivate {
           select: { id: true, teacherId: true },
         });
         if (!course) throw new NotFoundException("Course not found");
-        teacherId = course.teacherId;
         resolvedCourse = course;
       }
     }
 
     if (resolvedCourse) {
-      const ability = this.caslAbilityFactory.createForUser(user);
-      const isAllowed = ability.can(
-        Action.Update,
-        subject("Course", resolvedCourse),
-      );
-      if (!isAllowed) {
+      if (resolvedCourse.teacherId !== user.id) {
         throw new ForbiddenException("You do not own this course");
       }
       request.course = resolvedCourse;

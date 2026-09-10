@@ -2,9 +2,9 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import amqp from "amqplib";
-import { PrismaService } from "../../prisma/prisma.service";
-import { EVENTS_CONSTANTS } from "./events.constants";
-import { NotificationType } from "../../generated/prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { EVENTS_CONSTANTS } from "../common/events/events.constants";
+import { NotificationType } from "../generated/prisma/client";
 
 @Injectable()
 export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {

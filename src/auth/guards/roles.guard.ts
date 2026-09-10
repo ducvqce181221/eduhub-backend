@@ -7,23 +7,15 @@ import {
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ROLES_KEY } from "../decorators/roles.decorator";
-import { CaslAbilityFactory } from "../../casl/casl-ability.factory";
-
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
     @Optional()
     @Inject(Reflector)
     private reflector: Reflector = new Reflector(),
-    @Optional()
-    @Inject(CaslAbilityFactory)
-    private caslAbilityFactory: CaslAbilityFactory = new CaslAbilityFactory(),
   ) {
     if (!this.reflector) {
       this.reflector = new Reflector();
-    }
-    if (!this.caslAbilityFactory) {
-      this.caslAbilityFactory = new CaslAbilityFactory();
     }
   }
 
